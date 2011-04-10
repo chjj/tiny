@@ -40,31 +40,30 @@ It may be very unreliable.
 
 ## Example Querying
 
-	var Tiny = require('./tiny');
-	Tiny('articles.tiny', function(err, db) {
-		var TIME = Date.now();
-		var low = TIME - (60*60*1000), high = TIME - (30*60*1000);
-		
-		// mongo-style query
-		db.find({$or: [ 
-			{ timestamp: { $lte: low } }, 
-			{ timestamp: { $gte: high } }  
-		] }).desc('timestamp').select('title', 'timestamp').limit(3)(function(err, results) {
-			console.log('RESULTS:', results);
-		});
-		
-		// is equivalent to:
-		
-		db.fetch(['timestamp'], function(doc, total) {
-			if (total === 3) return 'break';
-			if (doc.timestamp <= low || doc.timestamp >= high) {
-				console.log('found', doc._key); // doc._key is always available no matter what the context
-				return ['title', 'timestamp'];
-			}
-		}, function(err, results) {
-			console.log('RESULTS:', Tiny.sort.desc(results, 'timestamp'));
-		});
-	});
+  var Tiny = require('./tiny');
+  Tiny('articles.tiny', function(err, db) {
+    var TIME = Date.now();
+    var low = TIME - (60*60*1000), high = TIME - (30*60*1000);
+    
+    // mongo-style query
+    db.find({$or: [ 
+      { timestamp: { $lte: low } }, 
+      { timestamp: { $gte: high } }  
+    ] }).desc('timestamp').select('title', 'timestamp').limit(3)(function(err, results) {
+      console.log('RESULTS:', results);
+    });
+    
+    // is equivalent to:
+    db.fetch(function(doc, total) {
+      if (total === 3) return 'break';
+      if (doc.timestamp <= low || doc.timestamp >= high) {
+        console.log('found', doc._key); // doc._key is always available no matter what the context
+        return ['title', 'timestamp'];
+      }
+    }, function(err, results) {
+      console.log('RESULTS:', Tiny.sort.desc(results, 'timestamp'));
+    });
+  });
 
 The mongo-style querying should be fairly self-explanatory.
 
@@ -74,36 +73,39 @@ make__ in the "map" function below. The second parameter is just like a CouchDB 
 except theres no `emit()`. You simply return an array of property names you want to select for
 that document. If `true` is returned, all properties are selected. 
 
+__UPDATE__: If you don't provide an array of the property names relevant to the query, Tiny will 
+now examine the map function using `Function.prototype.toString` and gather up the property names. 
+
 Note: there is a "shallow" option for both `.fetch()` and `.find()`, wherein if you don't explicitly 
 select the properties you want from the object, it will __only__ lookup properties that are under 1kb 
 in size. This is to go easy on the memory. 
 
 ## Other Usage
 
-	db.set('myDocument', {
-		title: 'a document',
-		content: 'hello world'
-	}, function() {
-		// note: .each() is probably (and hopefully) inefficient 
-		// compared to querying if you have a huge amount of data
-		db.each(function(doc) { 
-			console.log(doc.title);
-		});
-		db.remove('myDocument'); // delete the object/doc
-	});
-	
-	db.get('someOtherThing', function(err, data) {
-		console.log(data._key);
-	});
-	
-	// extends/updates the object 
-	// without overwriting its other properties
-	db.update('article_1', { 
-		title: 'new title'
-	}, function(err) {
-		console.log('done');
-	});
-	
+  db.set('myDocument', {
+    title: 'a document',
+    content: 'hello world'
+  }, function() {
+    // note: .each() is probably (and hopefully) inefficient 
+    // compared to querying if you have a huge amount of data
+    db.each(function(doc) { 
+      console.log(doc.title);
+    });
+    db.remove('myDocument'); // delete the object/doc
+  });
+  
+  db.get('someOtherThing', function(err, data) {
+    console.log(data._key);
+  });
+  
+  // extends/updates the object 
+  // without overwriting its other properties
+  db.update('article_1', { 
+    title: 'new title'
+  }, function(err) {
+    console.log('done');
+  });
+  
 ## License
 
 See LICENSE.
