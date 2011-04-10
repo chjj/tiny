@@ -40,30 +40,30 @@ It may be very unreliable.
 
 ## Example Querying
 
-  var Tiny = require('./tiny');
-  Tiny('articles.tiny', function(err, db) {
-    var TIME = Date.now();
-    var low = TIME - (60*60*1000), high = TIME - (30*60*1000);
-    
-    // mongo-style query
-    db.find({$or: [ 
-      { timestamp: { $lte: low } }, 
-      { timestamp: { $gte: high } }  
-    ] }).desc('timestamp').select('title', 'timestamp').limit(3)(function(err, results) {
-      console.log('RESULTS:', results);
+    var Tiny = require('./tiny');
+    Tiny('articles.tiny', function(err, db) {
+      var TIME = Date.now();
+      var low = TIME - (60*60*1000), high = TIME - (30*60*1000);
+      
+      // mongo-style query
+      db.find({$or: [ 
+        { timestamp: { $lte: low } }, 
+        { timestamp: { $gte: high } }  
+      ] }).desc('timestamp').select('title', 'timestamp').limit(3)(function(err, results) {
+        console.log('RESULTS:', results);
+      });
+      
+      // is equivalent to:
+      db.fetch(function(doc, total) {
+        if (total === 3) return 'break';
+        if (doc.timestamp <= low || doc.timestamp >= high) {
+          console.log('found', doc._key); // doc._key is always available no matter what the context
+          return ['title', 'timestamp'];
+        }
+      }, function(err, results) {
+        console.log('RESULTS:', Tiny.sort.desc(results, 'timestamp'));
+      });
     });
-    
-    // is equivalent to:
-    db.fetch(function(doc, total) {
-      if (total === 3) return 'break';
-      if (doc.timestamp <= low || doc.timestamp >= high) {
-        console.log('found', doc._key); // doc._key is always available no matter what the context
-        return ['title', 'timestamp'];
-      }
-    }, function(err, results) {
-      console.log('RESULTS:', Tiny.sort.desc(results, 'timestamp'));
-    });
-  });
 
 The mongo-style querying should be fairly self-explanatory.
 
@@ -82,29 +82,29 @@ in size. This is to go easy on the memory.
 
 ## Other Usage
 
-  db.set('myDocument', {
-    title: 'a document',
-    content: 'hello world'
-  }, function() {
-    // note: .each() is probably (and hopefully) inefficient 
-    // compared to querying if you have a huge amount of data
-    db.each(function(doc) { 
-      console.log(doc.title);
+    db.set('myDocument', {
+      title: 'a document',
+      content: 'hello world'
+    }, function() {
+      // note: .each() is probably (and hopefully) inefficient 
+      // compared to querying if you have a huge amount of data
+      db.each(function(doc) { 
+        console.log(doc.title);
+      });
+      db.remove('myDocument'); // delete the object/doc
     });
-    db.remove('myDocument'); // delete the object/doc
-  });
-  
-  db.get('someOtherThing', function(err, data) {
-    console.log(data._key);
-  });
-  
-  // extends/updates the object 
-  // without overwriting its other properties
-  db.update('article_1', { 
-    title: 'new title'
-  }, function(err) {
-    console.log('done');
-  });
+    
+    db.get('someOtherThing', function(err, data) {
+      console.log(data._key);
+    });
+    
+    // extends/updates the object 
+    // without overwriting its other properties
+    db.update('article_1', { 
+      title: 'new title'
+    }, function(err) {
+      console.log('done');
+    });
   
 ## License
 
