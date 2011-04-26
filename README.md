@@ -37,7 +37,7 @@ the query is complete, Tiny will perform lookups on the FD to grab the large
 properties and put them in their respective objects before results are returned 
 to you.
 
-This my attempt at combining what I thought the best aspects of nStore and 
+This my attempt at combining what I think the best aspects of nStore and 
 node-dirty are. node-dirty is incredibly fast and simple (everything is in-memory), 
 and nStore is very memory effecient, (but this only lasts until you perform a 
 query). node-tiny allows for queries that perform lookups on the db file, and it 
@@ -46,10 +46,7 @@ selectively caches properties as well, so its fast and easy on memory.
 The benefits you receive from using node-tiny depend on the kind of data you're 
 working with. With the blog example mentioned above, if you consider that the 
 metadata for a blog post may be as little as 200 bytes, a __half-million__ articles 
-would use less than 100mb of memory, and I don't know of any blog that actually 
-has that many posts. You can configure the limit at which properties are no 
-longer cached by calling `Tiny.limit`, which accepts a number of bytes. 
-e.g. `Tiny.limit(1024);`
+would use less than 100mb of memory. 
 
 ## Example Querying
 
@@ -85,6 +82,9 @@ similar to a mapreduce interface, but it's the rough equivalent of a `.filter` f
 Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein if you don't explicitly 
 it will __only__ lookup properties that are under 1kb in size. This is to go easy on the memory. `.each` 
 and `.all` are shallow by default, but they do have a `deep` parameter, (which I don't recommend using).
+
+You can configure the limit at which properties are no longer cached by calling `Tiny.limit`, 
+which accepts a number of bytes. e.g. `Tiny.limit(1024);`
 
 ## Other Usage
 

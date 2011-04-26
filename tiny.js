@@ -120,9 +120,9 @@ Tiny.prototype._load = function(func) {
       debug('Loading small properties into memory.');
       para(lines, function(loop, index, realKey) {
         var s = realKey.split('.'), docKey = s[0], propKey = s[1];
+        if (!self._cache[docKey]) self._cache[docKey] = {};
         if (index[1] < CACHE_LIMIT) {
           self._lookup(index, function(err, data) {
-            if (!self._cache[docKey]) self._cache[docKey] = {};
             self._cache[docKey][propKey] = data;
             loop();
           });
@@ -200,8 +200,6 @@ Tiny.prototype.commit = function(func) {
 };
 
 // set/insert/save/update a document/object
-// we could check to see if the properties are 
-// different from the cached ones to optimize things
 Tiny.prototype.set = function(docKey, _doc, func, update) {
   var self = this, doc = {}; // the new stringified doc
   
@@ -240,9 +238,7 @@ Tiny.prototype.set = function(docKey, _doc, func, update) {
   if (func) self.commit();
 };
 
-// extends/updates the document, do not overwrite missing properties.
-// this is necessary because specific properties can be selected in 
-// a query, and a resulting object may only contain a few properties.
+// updates the document, do not overwrite missing properties.
 Tiny.prototype.update = function(docKey, doc, func) {
   if (!this._cache[docKey]) return this._err(func, 'No such key.'); 
   return this.set(docKey, doc, func, true);
@@ -251,7 +247,7 @@ Tiny.prototype.update = function(docKey, doc, func) {
 // remove a document...
 Tiny.prototype.remove = function(docKey, func) {
   if (!this._cache[docKey]) return this._err(func, 'No such key.'); 
-  this.set(docKey, { _key: DELETED }, func); 
+  return this.set(docKey, { _key: DELETED }, func); 
 };
 
 // grab an text excerpt from the FD 
@@ -262,8 +258,7 @@ Tiny.prototype._read = function(pos, length, func) {
   });
 };
 
-// lookup a property, either from cache or by reading a chunk from the FD
-// ignore deleted properties, deep by default
+// lookup a property, ignore deleted properties, deep by default
 Tiny.prototype._lookup = function(lookup, func) {
   var self = this;
   self._read(lookup[0], lookup[1], function(err, data) {
@@ -369,7 +364,6 @@ Tiny.prototype.compact = function(func) {
 
 // ======================= QUERYING ======================= //
 Tiny.prototype.fetch = function(map, done, shallow) {
-  if (typeof map !== 'function') { map = done; done = shallow; shallow = arguments[3]; }
   var self = this, docs = [];
   para(self._cache, function(loop, cache, docKey, cur) {
     var ret = map.call(self, cache, cur);
@@ -378,7 +372,7 @@ Tiny.prototype.fetch = function(map, done, shallow) {
         docs.push(doc);
         loop();
       }, shallow);
-    } else { //if (ret !== 'break' && ret !== false) {
+    } else { 
       loop();
     }
   }, function() {
