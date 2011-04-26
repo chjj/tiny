@@ -22,27 +22,10 @@ var _DEBUG = true;
 // are no longer cached, 1kb by default
 var CACHE_LIMIT = 1024; 
 
-// precaching will cache all small properties (<1kb) into 
-// the memory when the database loads. this will improve 
-// performance and minimize reads, but potentially use 
-// more memory enable this if you have a database that isnt 
-// moderately large
-var ENABLE_PRECACHING = false;
-
 // a token to recognize deleted properties
 // maybe use null or vertical tab? 
 // JSON might have trouble with other things
 var DELETED = '\r'; 
-
-// Before getting to the code, it helps to define some 
-// terms here just to keep things straight
-//  docKey: the key for a doc
-//  propKey: the key of a document's property
-//  realKey: docKey + '.' + propKey :: this is the key by which the 
-//    property is actually stored in the database/index
-//  prop: the actual data of a property i.e. props[realKey];
-//  doc: a collection of props with propKeys as their keys
-//  index: a flattened collection of props with realKeys as their keys
 
 var debug;
 if (_DEBUG) {
@@ -66,30 +49,22 @@ var Tiny = module.exports = function(name, func) {
   this._load(func);
 };
 
+Tiny.open = Tiny;
+
+var Lookup = function(index) {
+  this[0] = index[0];
+  this[1] = index[1];
+};
+
 Tiny.limit = function(n) {
   CACHE_LIMIT = n;
   return this;
 };
 
-Tiny.precache = function() {
-  ENABLE_PRECACHING = true;
-  return this;
-};
-
-// a different index structure may be better:
-// this._index['test.prop1'] = {
-//   pos: 100,
-//   size: 10,
-//   doc: 'test',
-//   prop: 'prop1'
-// };
-
 Tiny.prototype._load = function(func) {
   var self = this;
   
-  self._index = {};
   self._cache = {};
-  self._cacheSize = 0; // this may be useful for limiting total cache size in the future
   self._queue = [];
   self._busy = false;
   
@@ -118,10 +93,12 @@ Tiny.prototype._load = function(func) {
             } else {
               key = data.slice(start - pos, i).toString('utf-8');
             }
-            lines[key] = [ pos + i ]; // starting pos of the JSON data
+            // starting pos of the JSON data
+            lines[key] = [ pos + i ]; 
           } else if (data[i] === 10) { // line feed
             state = 'key';
-            // set the starting position of the new line
+            // set the starting position of the 
+            // new line including the key
             start = pos + i + 1;
             // set the length of the previous line
             lines[key][1] = start - lines[key][0]; 
@@ -137,32 +114,27 @@ Tiny.prototype._load = function(func) {
         read(pos + bytes, done);
       });
     })(0, function(err) {
-      process.nextTick(function() {
-        self._fd = fd;
-        self._total = total;
-        self._index = lines;
-        // temporary fix to remove 
-        // deleted docs from the index
-        /*for (var realKey in self._index) {
-          if (self._index[realKey]._key === DELETED) {
-            delete self._index[realKey];
-          }
-        }*/
-        if (ENABLE_PRECACHING) {
-          var lookups = [];
-          for (var realKey in self._index) {
-            if (self._index[realKey][1] < CACHE_LIMIT) {
-              lookups.push(realKey);
-            }
-          }
-          self._lookupMany(lookups, done);
+      debug('Done parsing.');
+      self._fd = fd;
+      self._total = total;
+      debug('Loading small properties into memory.');
+      para(lines, function(loop, index, realKey) {
+        var s = realKey.split('.'), docKey = s[0], propKey = s[1];
+        if (index[1] < CACHE_LIMIT) {
+          self._lookup(index, function(err, data) {
+            if (!self._cache[docKey]) self._cache[docKey] = {};
+            self._cache[docKey][propKey] = data;
+            loop();
+          });
         } else {
-          done();
+          self._cache[docKey][propKey] = new Lookup(index);
+          loop();
         }
-        function done() {
+      }, function done() {
+        process.nextTick(function() {
           debug('DB open.');
           if (func) func.call(self, err, self);
-        }
+        });
       });
     });
   });
@@ -171,15 +143,13 @@ Tiny.prototype._load = function(func) {
 // curry on an error
 Tiny.prototype._err = function(func, err, ret) {
   err = err || 'Not found.';
-  debug(err);
+  debug(err+'');
   return func && func.call(this, new Error(err), ret);
 };
 
 // commit the changes to the fd
-// this and .set() both need cleaning up
 Tiny.prototype.commit = function(func) {
-  var self = this;
-  var data, queue;
+  var self = this, data, queue;
   
   if (self._busy || !self._queue.length || !self._fd) return;
   
@@ -191,22 +161,21 @@ Tiny.prototype.commit = function(func) {
   data = [];
   
   queue.forEach(function(item) {
-    var total = 0, propKey, prop, realKey, propSize, realKeySize;
+    var total = 0, propKey, prop, 
+        realKey, propSize, realKeySize;
     for (propKey in item.doc) {
       realKey = item.docKey + '.' + propKey;
       prop = realKey + '\t' + item.doc[propKey] + '\n';
       propSize = Buffer.byteLength(prop);
       realKeySize = Buffer.byteLength(realKey + '\t');
       
-      /*if (item.doc.deleted) {
-        delete self._cache[realKey];
-        delete self._index[realKey];
-      } else {*/
-        self._index[realKey] = [ 
-          self._total + total + realKeySize - 1, // seems to be 1 byte too long in tests 
+      if (propSize > CACHE_LIMIT) {
+        self._cache[item.docKey][propKey] = new Lookup([ 
+          // seems to be 1 byte too long in tests 
+          self._total + total + realKeySize - 1, 
           propSize - realKeySize 
-        ];
-      //}
+        ]);
+      }
       
       total += propSize;
       data.push(prop);
@@ -224,7 +193,7 @@ Tiny.prototype.commit = function(func) {
     data = null;
     process.nextTick(function() {
       self._busy = false;
-      if (func) func.call(self, err);
+      func && func.call(self, err);
       self.commit();
     });
   });
@@ -234,49 +203,39 @@ Tiny.prototype.commit = function(func) {
 // we could check to see if the properties are 
 // different from the cached ones to optimize things
 Tiny.prototype.set = function(docKey, _doc, func, update) {
-  var self = this;
+  var self = this, doc = {}; // the new stringified doc
   
-  var doc = {}; // the new stringified doc
+  debug('setting doc :', docKey);
   
-  debug('setting doc:', docKey);
-  
-  if (!_doc._key) _doc._key = docKey;
-  
-  // right here we need to find all the current properties not
-  // included in the input object and set all those properties 
-  // to the deleted token - if we werent storing flattened objects, 
-  // this would be a lot easier
+  var cache = self._cache;
   if (!update) {
-    for (var s in self._index) {
-      s = s.split('.');
-      if (s[0] === docKey && !(s[1] in _doc)) {
-        doc[s[1]] = DELETED;
+    if (cache[docKey]) {
+      for (var k in cache[docKey]) {
+        if (!(k in _doc)) {
+          doc[k] = stringify(DELETED);
+        }
       }
     }
+    
+    if (_doc._key !== DELETED) {
+      _doc._key = docKey;
+      cache[docKey] = _doc;
+    } else {
+      delete cache[docKey];
+    }
+  } else {
+    if (!cache[docKey]) cache[docKey] = {};
+    for (var k in _doc) cache[docKey][k] = _doc[k];
   }
   
-  for (var propKey in _doc) {
-    doc[propKey] = stringify(_doc[propKey]);
-    var realKey = docKey + '.' + propKey;
-    var size = doc[propKey].length; // use .length, doesnt need to be exact
-    if (size < CACHE_LIMIT) {
-      if (self._cache[realKey]) {
-        self._cacheSize -= self._index[realKey][1];
-      }
-      self._cache[realKey] = _doc[propKey];
-      self._cacheSize += size;
-    } else if (self._cache[realKey]) { // the prop used to be below the cache limit, but that has changed
-      delete self._cache[realKey];
-      self._cacheSize -= self._index[realKey][1];
-    }
+  for (var k in _doc) {
+    doc[k] = stringify(_doc[k]);
   }
   
   self._queue.push({
     docKey: docKey, 
     doc: doc, 
-    func: func, 
-    // temporary fix, should only need to set key to deleted if this works
-    //deleted: !!(_doc._key === DELETED)
+    func: func
   });
   if (func) self.commit();
 };
@@ -285,7 +244,14 @@ Tiny.prototype.set = function(docKey, _doc, func, update) {
 // this is necessary because specific properties can be selected in 
 // a query, and a resulting object may only contain a few properties.
 Tiny.prototype.update = function(docKey, doc, func) {
-  return Tiny.prototype.set.call(this, docKey, doc, func, true);
+  if (!this._cache[docKey]) return this._err(func, 'No such key.'); 
+  return this.set(docKey, doc, func, true);
+};
+
+// remove a document...
+Tiny.prototype.remove = function(docKey, func) {
+  if (!this._cache[docKey]) return this._err(func, 'No such key.'); 
+  this.set(docKey, { _key: DELETED }, func); 
 };
 
 // grab an text excerpt from the FD 
@@ -298,66 +264,22 @@ Tiny.prototype._read = function(pos, length, func) {
 
 // lookup a property, either from cache or by reading a chunk from the FD
 // ignore deleted properties, deep by default
-Tiny.prototype._lookup = function(realKey, func, shallow) {
+Tiny.prototype._lookup = function(lookup, func) {
   var self = this;
-  var index = self._index[realKey];
-  if (!index) { 
-    return self._err(func, 'Property not indexed.'); 
-  }
-  //if (self._cache[realKey.split('.')[0] + '._key'] === DELETED) {
-  //if (self._cache[index.doc + '._key'] === DELETED) {
-  //  return self._err(func);
-  //}
-  if (self._cache[realKey]) {
-    if (self._cache[realKey] === DELETED) {
+  self._read(lookup[0], lookup[1], function(err, data) {
+    if (err) { 
+      return self._err(func, err);
+    }
+    try {
+      data = JSON.parse(data);
+    } catch(err) {
+      return self._err(func, err); 
+    }
+    // make sure to ignore if its deleted
+    if (data === DELETED) {
       return self._err(func); 
     }
-    if (func) func.call(self, null, self._cache[realKey]);
-  } else {
-    // check to see if the lookup is shallow
-    // if it is, dont return properties exceeding
-    // the cache limit
-    if (shallow && index[1] > CACHE_LIMIT) {
-      return self._err(func); 
-    }
-    self._read(index[0], index[1], function(err, data) {
-      if (err) { // maybe throw?
-        return self._err(func, err);
-      }
-      try {
-        data = JSON.parse(data);
-      } catch(err) {
-        return self._err(func, err); 
-      }
-      if (index[1] < CACHE_LIMIT) {
-        self._cache[realKey] = data;
-        self._cacheSize += index[1];
-      }
-      // make sure to ignore if its deleted
-      if (data === DELETED) {
-        return self._err(func); 
-      }
-      if (func) func.call(self, null, data);
-    });
-  }
-};
-
-// an async parallel loop to lookup multiple properties
-// it returns them as a structured object (stuctureProps)
-// [ 'doc1.title', 'doc2.title' ]
-// returns { doc1: { title: ... }, doc2: { title: ... } }
-Tiny.prototype._lookupMany = function(realKeys, func, shallow) { 
-  var self = this, props = {}, i = 0;
-  if (!realKeys || !realKeys.length) {
-    return func.call(self, props);
-  }
-  realKeys.forEach(function(realKey) {
-    self._lookup(realKey, function(err, data) {
-      if (!err) props[realKey] = data;
-      if (++i === realKeys.length && func) {
-        func.call(self, structureProps(props));
-      }
-    }, shallow);
+    if (func) func.call(self, null, data);
   });
 };
 
@@ -366,26 +288,22 @@ Tiny.prototype._lookupMany = function(realKeys, func, shallow) {
 // if it is shallow, only the properties
 // under the CACHE_LIMIT will be retrieved
 Tiny.prototype.get = function(docKey, func, shallow) {
-  var self = this;
-  self._lookupMany(self._getRealKeysByDocKey(docKey), function(docs) {
-    if (func) func.call(self, null, docs[docKey]);
-  }, shallow);
-};
-
-// remove a document...
-Tiny.prototype.remove = function(docKey, func) {
-  var doc, realKey;
-  for (realKey in this._index) {
-    var s = realKey.split('.');
-    if (s[0] === docKey) {
-      if (!doc) doc = {};
-      doc[s[1]] = DELETED;
+  var self = this, cache = self._cache[docKey];
+  if (!cache) return self._err(func);
+  var doc = {};
+  para(cache, function(loop, prop, propKey) {
+    if (!shallow && cache[propKey] instanceof Lookup) {
+      self._lookup(cache[propKey], function(err, data) {
+        doc[propKey] = data;
+        loop();
+      });
+    } else {
+      doc[propKey] = cache[propKey];
+      loop();
     }
-  }
-  if (!doc) return this._err(func, 'No such key.'); 
-  doc._key = DELETED;
-  this.set(docKey, doc, func); 
-  //this.set(docKey, { _key: DELETED }, func);
+  }, function() {
+    func && func.call(self, null, doc);
+  });
 };
 
 // return an array containing *every* document
@@ -393,20 +311,12 @@ Tiny.prototype.remove = function(docKey, func) {
 // only lookup and include properties smaller
 // than the cache limit (<1kb)
 Tiny.prototype.all = function(func, deep) { 
-  var self = this, i = 0, msg, docs = {}, done = {};
-  var realKeys = Object.keys(self._index);
-  realKeys.forEach(function(realKey) {
-    var docKey = realKey.split('.')[0];
-    if (done[docKey]) return;
-    done[docKey] = true;
-    self.get(docKey, function(err, doc) {
-      docs[docKey] = doc;
-      if (!msg) msg = err;
-      if (++i === realKeys.length) {
-        func.call(self, msg, toArray(docs)); 
-      }
-    }, !deep);
-  });
+  var self = this;
+  self.fetch(function() {
+    return true;
+  }, function(err, docs) {
+    func && func.call(self, err, docs); 
+  }, !deep);
 };
 
 // iterate through *every* document
@@ -428,7 +338,7 @@ Tiny.prototype.close = function(func) {
   fs.close(self._fd, function() {
     delete self._fd;
     self._busy = false;
-    if (func) func.call(self);
+    func && func.call(self);
   });
 };
 
@@ -457,167 +367,30 @@ Tiny.prototype.compact = function(func) {
   }, true); 
 };
 
-// clear the cache (properties smaller than 1kb)
-Tiny.prototype.forget = function() {
-  this._cache = {};
-  this._cacheSize = 0;
-};
-
-// turn a collection of docs into
-// a flat collection of properties
-// turn: { 'doc1': { 'prop1': 'hi' } }
-// into: { 'doc1.prop1': 'hi' }
-var flattenDocs = function(docs) {
-  var props = {};
-  for (var docKey in docs) {
-    var doc = docs[docKey];
-    for (var propKey in doc) {
-      props[docKey + '.' + propKey] = doc[propKey];
-    }
-  }
-  return props;
-};
-
-// take a collection of flattened properties
-// and structure them into documents
-// turn: { 'doc1.prop1': 'hi' }
-// into: { 'doc1': { 'prop1': 'hi' } }
-var structureProps = function(props) {
-  var docs = {};
-  for (var realKey in props) {
-    var s = realKey.split('.');
-    var docKey = s[0], propKey = s[1];
-    if (!docs[docKey]) docs[docKey] = { _key: docKey }; // maybe move this down to fetch 
-    docs[docKey][propKey] = props[realKey];
-  }
-  return docs;
-};
-
-// take a docKey e.g. "article_1"
-// and return an array of all the document's realKeys
-// e.g: [ 'article_1.title', 'article_1.timestamp' ]
-Tiny.prototype._getRealKeysByDocKey = function(docKey) {
-  var self = this, realKeys = [];
-  for (var realKey in self._index) {
-    if (realKey.split('.')[0] === docKey) {
-      realKeys.push(realKey);
-    }
-  }
-  return realKeys;
-};
-
-// take an array of propKeys e.g. [ 'title', 'timestamp' ]
-// and find all the realKeys that contain these propKeys
-// for any document e.g: 
-// [ 'doc1.title', 'doc2.title', 'doc1.timestamp', ... ]
-Tiny.prototype._getRealKeysByPropKeys = function(propKeys) {
-  var self = this, realKeys = [], realKey;
-  if (!Array.isArray(propKeys)) {
-    propKeys = propKeys ? [ propKeys ] : [];
-  }
-  for (realKey in self._index) {
-    if (!propKeys.length || propKeys.indexOf(realKey.split('.')[1]) !== -1) {
-    //if (!propKeys.length || propKeys.indexOf(self._index[realKey].prop) !== -1) {
-      realKeys.push(realKey);
-    }
-  }
-  return realKeys;
-};
-
 // ======================= QUERYING ======================= //
-
-// how it works:
-// since properties are stored individually in the db file
-// it is possible to look them up selectively.
-// in analyzing a query, we need to start by determining which 
-// keys are relevant to the query's comparisons. we then lookup
-// these properties and let the callback perform the comparisons
-// and return the desired documents/property names. the returned
-// properties are then read from the FD, structured and compiled
-// and passed into the final callback.
-
-
-// closely examine the map function to determine 
-// what property names are relevant to the query
-// for example:
-//  function(doc) {
-//    if (doc.prop1 && doc.prop2) {
-//      return true;
-//    }
-//  }
-// will return [ 'prop1', 'prop2' ]
-var examineMapFunction = function(map) {
-  var rel = {};
-  map = map.toString();
-  // get the name of the "doc" parameter
-  map.replace(/^\s*function[^(]*\(\s*([^,)]+)/i, function(__, param) {
-    // we now put use the name of the doc param in a regex that looks 
-    // for the names of properties that are being compared
-    
-    // the dollar sign is really the only thing we need to escape here
-    param = param.trim().replace(/\$/g, '\\$'); 
-    
-    // normalize property names
-    map = map.replace(new RegExp(param + '\\s*\\.\\s*([$_\\w]+)', 'g'), param + '["$1"]');
-    
-    map.replace(new RegExp(param + '\\s*\\[\\s*("|\')([\\s\\S]+?)\\1\\s*\\]', 'g'), function(__, __, name) {
-      rel[name] = true;
-    });
-  });
-  rel = Object.keys(rel);
-  return rel.length && rel;
-};
-
-// a map-reduce-like function, this is used internally, but
-// it is also more efficient than the mongo querying
-Tiny.prototype.fetch = function(rel, map, done, shallow) {
-  var self = this, lookups;
-  if (!Array.isArray(rel)) { shallow = done; done = map; map = rel; rel = undefined; }
-  if (!rel) rel = examineMapFunction(map);
-  lookups = self._getRealKeysByPropKeys(rel);
-  self._lookupMany(lookups, function(docs) {
-    var lookups = [], i = 0;
-    for (var docKey in docs) {
-      var ret = map.call(self, docs[docKey], i++);
-      if (ret === 'break' || ret === false) break;
-      if (ret === 'continue' || ret == null) continue;
-      if (ret === true) {
-        lookups = lookups.concat(self._getRealKeysByDocKey(docKey));
-      } else {
-        lookups = lookups.concat(ret.map(function(propKey) { 
-          return docKey + '.' + propKey; 
-        }));
-      }
+Tiny.prototype.fetch = function(map, done, shallow) {
+  if (typeof map !== 'function') { map = done; done = shallow; shallow = arguments[3]; }
+  var self = this, docs = [];
+  para(self._cache, function(loop, cache, docKey, cur) {
+    var ret = map.call(self, cache, cur);
+    if (ret === true) {
+      self.get(docKey, function(err, doc) {
+        docs.push(doc);
+        loop();
+      }, shallow);
+    } else { //if (ret !== 'break' && ret !== false) {
+      loop();
     }
-    self._lookupMany(lookups, function(docs) {
-      docs = toArray(docs);
-      if (!docs.length) {
-        return done.call(self, new Error('No Records'), docs);
-      }
-      done.call(self, null, docs);
-    }, shallow);
-  }, shallow);
+  }, function() {
+    if (!docs.length) {
+      return done.call(self, new Error('No Records'), docs);
+    }
+    done.call(self, null, docs);
+  });
 };
 
 // mongo-style querying
 Tiny.prototype.query = (function() {
-  // deeply traverse the an entire object 
-  // gather up all non-operator, non-array/numeric keys
-  var getRelevantKeys = function(statement) {
-    var rel = {};
-    (function getKeys(obj) {
-      for (var key in obj) {
-        if (key.charAt(0) !== '$' && !Array.isArray(obj)) {
-          rel[key] = true;
-        }
-        if (obj[key] && typeof obj[key] === 'object') {
-          getKeys(obj[key]);
-        }
-      }
-    })(statement);
-    return Object.keys(rel);
-  };
-  
   // test a statement against a document
   var testStatement = (function() {
     // operator logic
@@ -688,7 +461,6 @@ Tiny.prototype.query = (function() {
       var fail = false;
       if (Array.isArray(state)) {
         var fails = 0, i = state.length;
-        //for (var i = state.length; i--;) {
         while (i--) {
           if (!testStatement(state[i], doc)) fails++;
         }
@@ -750,11 +522,11 @@ Tiny.prototype.query = (function() {
     where = where || {};
     options = options || {};
     var skip = options.skip || 0, limit = options.limit; 
-    self.fetch(getRelevantKeys(where), function(doc, total) {
+    self.fetch(function(doc, total) { 
       if (total < skip) return 'continue';
       if (limit && (total-skip) > limit) return 'break';
       if (testStatement(where, doc)) {
-        return options.select || true;
+        return true;
       }
     }, function(err, results) {
       if (options.desc) {
@@ -789,7 +561,6 @@ Tiny.prototype.find = function() {
   };
   chain.count = function() {
     options.count = true;
-    options.select = ['_key']; // have it select a property we know exists
     return chain;
   };
   chain.desc = function() {
@@ -825,20 +596,32 @@ Tiny.prototype.find = function() {
 // ========== helper functions ========== //
 var _slice = [].slice;
 
+var para = function(obj, looper, func) {
+  var cur = 0, k = Object.keys(obj), 
+      i = 0, l = k.length;
+  if (!l) return func && func();
+  var next = function() {
+    if (++cur === l) func && func();
+  };
+  for (; i < l; i++) (function(val, key) {
+    looper(next, val, key, cur);
+  })(obj[k[i]], k[i]);
+};
+
 // safe stringify
 var stringify = function(val) {
-  var type = typeof val;
-  if (type === 'undefined' || type === 'function' || val !== val) {
+  var t = typeof val;
+  if (t === 'undefined' || t === 'function' || val !== val) {
     val = null;
   }
   return JSON.stringify(val);
 };
 
 var toArray = function(obj) {
-  var a = [];
   if (typeof obj.length === 'number') {
     return _slice.call(obj);
   }
+  var a = [];
   for (var k in obj) a.push(obj[k]);
   return a;
 };

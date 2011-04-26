@@ -1,0 +1,7 @@
+{
+  "name": "node-tiny",
+  "description": "an in-process database",
+  "author": "Christopher Jeffrey",
+  "version": "0.1",
+  "main": "./tiny.js"
+}

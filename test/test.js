@@ -44,28 +44,11 @@ function(next) {
   });
 }, 
 function(next) {
-  // db.query is the non-chainable version of db.find
   db.query({two: 'hi'}, function(err, results) {
     console.log('RESULTS:', results);
     next();
   }, {select: ['four']});
-}, 
-/*function(next) {
-  db.find({two: 'hi'})
-  .select('four', 'three')
-  (function(err, results) {
-    console.log('RESULTS:', results);
-    next();
-  });
-}, 
-function(next) {
-  db.find({two: { $eq: 'hi' }})
-  .select('four', 'three')
-  (function(err, results) {
-    console.log('RESULTS:', results);
-    next();
-  });
-}, */
+},
 function(next) {
   db.find({num: { $gte: 72 }, two: { $eq: 'hi' }})
   .desc('num').limit(2)(function(err, results) {
@@ -74,8 +57,10 @@ function(next) {
   });
 }, 
 function(next) {
-  db.find({$or: [ { num: { $gt: 82 } }, { num: { $eq: 82 } }  ] })
-  .desc('num').limit(3)(function(err, results) {
+  db.find({$or: [ 
+    { num: { $gt: 82 } }, 
+    { num: { $eq: 82 } } 
+  ]}).desc('num').limit(3)(function(err, results) {
     console.log('RESULTS:', results);
     next();
   });

@@ -20,23 +20,36 @@ with no dependencies. I also wanted it to be simple: There are no schemas and
 nothing you need to know to get started, just store your data: a portable database 
 that you can drag around in a single file.
 
-## Note:
+## A new direction taken with node-tiny
 
-__This is experimental.__ I can't speak for how durable this is or isn't.
-There may be bugs, memory leaks, etc. I'm not able to test this thoroughly by
-myself. I was on the verge of abandoning this project just recently, which is why 
-I uploaded it. I would love to see people trying this out for small side projects, 
-forking, giving feedback, etc. The goal here was efficiency and low memory usage.
-I wanted to be able to realistically use an in-process database that I could run 
-a blog with. Unfortunately, I don't think I'm able to fully judge how 
-durable it is by myself.
+node-tiny takes advantage of the fact that, normally, when you query for 
+records in a database, you're only comparing small properties (<1kb) in the 
+query itself. For example, when you query for articles on a weblog, you'll 
+usually only be comparing the timestamp of the article, the title, the author, 
+the category, the tags, etc. - pretty much everything except the content of 
+the article itself.
 
-I apologize for the code, it's sparsely commented, and a lot of the comments are 
-notes to myself. The tests I've written are arbitrary and messy. Once again, this 
-isn't ready for production use. I don't even know if it was ready for an upload 
-(I was almost about to just gist it), it is just an experiment I have been working on. 
-It still has some maturing to do. The code is slightly messy, there are bugs, etc. 
-It may be very unreliable.
+Tiny stores each document/object's property individually in the DB file and 
+caches all the small properties into memory when the DB loads, leaving anything 
+above 1kb behind. When a query is performed, Tiny only lets you compare the 
+properties stored in memory, which is what you were going to do anyway. Once 
+the query is complete, Tiny will perform lookups on the FD to grab the large 
+properties and put them in their respective objects before results are returned 
+to you.
+
+This my attempt at combining what I thought the best aspects of nStore and 
+node-dirty are. node-dirty is incredibly fast and simple (everything is in-memory), 
+and nStore is very memory effecient, (but this only lasts until you perform a 
+query). node-tiny allows for queries that perform lookups on the db file, and it 
+selectively caches properties as well, so its fast and easy on memory.
+
+The benefits you receive from using node-tiny depend on the kind of data you're 
+working with. With the blog example mentioned above, if you consider that the 
+metadata for a blog post may be as little as 200 bytes, a __half-million__ articles 
+would use less than 100mb of memory, and I don't know of any blog that actually 
+has that many posts. You can configure the limit at which properties are no 
+longer cached by calling `Tiny.limit`, which accepts a number of bytes. 
+e.g. `Tiny.limit(1024);`
 
 ## Example Querying
 
@@ -49,36 +62,29 @@ It may be very unreliable.
       db.find({$or: [ 
         { timestamp: { $lte: low } }, 
         { timestamp: { $gte: high } }  
-      ] }).desc('timestamp').select('title', 'timestamp').limit(3)(function(err, results) {
+      ]}).desc('timestamp')
+      .limit(3)(function(err, results) {
         console.log('RESULTS:', results);
       });
       
       // is equivalent to:
       db.fetch(function(doc, total) {
-        if (total === 3) return 'break';
+        if (total === 3) return;
         if (doc.timestamp <= low || doc.timestamp >= high) {
-          console.log('found', doc._key); // doc._key is always available no matter what the context
-          return ['title', 'timestamp'];
+          console.log('found', doc._key); 
+          return true;
         }
       }, function(err, results) {
         console.log('RESULTS:', Tiny.sort.desc(results, 'timestamp'));
       });
     });
 
-The mongo-style querying should be fairly self-explanatory.
+The mongo-style querying should be fairly self-explanatory. The second query is supposed to be 
+similar to a mapreduce interface, but it's the rough equivalent of a `.filter` function.
 
-The first argument of the `.fetch()` method takes an array of property names. These 
-are the names of the properties that are __relevant to the comparisons you are going to 
-make__ in the "map" function below. The second parameter is just like a CouchDB map function,
-except theres no `emit()`. You simply return an array of property names you want to select for
-that document. If `true` is returned, all properties are selected. 
-
-__UPDATE__: If you don't provide an array of the property names relevant to the query, Tiny will 
-now examine the map function using `Function.prototype.toString` and gather up the property names. 
-
-Note: there is a "shallow" option for both `.fetch()` and `.find()`, wherein if you don't explicitly 
-select the properties you want from the object, it will __only__ lookup properties that are under 1kb 
-in size. This is to go easy on the memory. 
+Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein if you don't explicitly 
+it will __only__ lookup properties that are under 1kb in size. This is to go easy on the memory. `.each` 
+and `.all` are shallow by default, but they do have a `deep` parameter, (which I don't recommend using).
 
 ## Other Usage
 
@@ -86,8 +92,7 @@ in size. This is to go easy on the memory.
       title: 'a document',
       content: 'hello world'
     }, function() {
-      // note: .each() is probably (and hopefully) inefficient 
-      // compared to querying if you have a huge amount of data
+      // .each is shallow by default
       db.each(function(doc) { 
         console.log(doc.title);
       });
@@ -98,14 +103,22 @@ in size. This is to go easy on the memory.
       console.log(data._key);
     });
     
-    // extends/updates the object 
+    // updates the object 
     // without overwriting its other properties
     db.update('article_1', { 
       title: 'new title'
     }, function(err) {
       console.log('done');
     });
-  
+    
+    db.close(function() {
+      console.log('db closed');
+    });
+    
+    db.compact(function() {
+      console.log('done');
+    });
+
 ## License
 
-See LICENSE.
+See LICENSE (MIT).
