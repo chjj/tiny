@@ -68,14 +68,17 @@ Tiny.prototype._load = function(func) {
   self._queue = [];
   self._busy = false;
   
-  var data = new Buffer(4 * 1024); // size of the chunks
+  // size of the chunks
+  var data = new Buffer(4 * 1024); 
   
-  var 
-    key,
-    state = 'key',
-    lines = {}, // each line array will contain 2 indexes: the pointer position, and the length
-    start = 0, // the start position of a new line/key
-    total = 0;
+  var key,
+      state = 'key',
+      lines = {}, 
+      start = 0, 
+      total = 0;
+  
+  // each "line" array will contain 2 indexes: the pointer position, and the length
+  // "start" is the start position of a new line/key
   
   fs.open(self.name, 'a+', 0666, function(err, fd) {
     if (err) return func && func.call(self, err);
@@ -204,6 +207,10 @@ Tiny.prototype._set = function(docKey, _doc, func, flag) {
   var self = this, doc = {}; // the new stringified doc
   var cache = self._cache;
   
+  if (!_doc || typeof _doc !== 'object') {
+    return this._err(func, 'Bad object.'); 
+  }
+  
   debug('setting doc :', docKey);
   
   // if there are any properties in the cache
@@ -214,7 +221,9 @@ Tiny.prototype._set = function(docKey, _doc, func, flag) {
     for (var k in cache[docKey]) { 
       // implictly set _key to DELETED for 'delete'
       // this assumes ._key is in the cached object
-      if (!(k in _doc)) doc[k] = stringify(DELETED);
+      if (!Object.prototype.hasOwnProperty.call(_doc, k)) {
+        doc[k] = stringify(DELETED);
+      }
     }
   }
   
@@ -232,9 +241,10 @@ Tiny.prototype._set = function(docKey, _doc, func, flag) {
       }
       
       // shallow copy
-      for (var k in _doc) {
-        cache[docKey][k] = _doc[k];
-        doc[k] = stringify(_doc[k]);
+      var k = Object.keys(_doc);
+      for (var i = 0, l = k.length; i < l; i++) {
+        cache[docKey][k[i]] = _doc[k[i]];
+        doc[k[i]] = stringify(_doc[k[i]]);
       }
       
       // make sure it has a key
@@ -244,30 +254,6 @@ Tiny.prototype._set = function(docKey, _doc, func, flag) {
       delete cache[docKey];
       break;
   }
-  
-  // the "cache with a reference" code
-  /*_doc._key = docKey; // alter to ensure _key
-  
-  switch (flag) {
-    case 'set':
-      cache[docKey] = _doc;
-      for (var k in _doc) {
-        doc[k] = stringify(_doc[k]);
-      }
-      break;
-    case 'update':
-      if (!cache[docKey]) {
-        cache[docKey] = {};
-      }
-      for (var k in _doc) {
-        cache[docKey][k] = _doc[k];
-        doc[k] = stringify(_doc[k]);
-      }
-      break;
-    case 'delete':
-      delete cache[docKey];
-      break;
-  }*/
   
   self._queue.push({
     docKey: docKey, 
@@ -350,12 +336,9 @@ Tiny.prototype.get = function(docKey, func, shallow) {
 // only lookup and include properties smaller
 // than the cache limit (<1kb)
 Tiny.prototype.all = function(func, deep) { 
-  var self = this;
-  self.fetch(function() {
+  this.fetch(function() {
     return true;
-  }, function(err, docs) {
-    if (func) func.call(self, err, docs); 
-  }, !deep);
+  }, func, !deep);
 };
 
 // iterate through *every* document
@@ -635,7 +618,9 @@ Tiny.prototype.find = function() {
   var chain = function(func) {
     return self.query.apply(self, args.concat(func, options));
   };
-  chain.select = function() {
+  // doesnt work at the moment
+  // may be removed
+  chain.select = function() { 
     options.select = Array.isArray(arguments[0]) 
       ? arguments[0] 
       : _slice.call(arguments)
