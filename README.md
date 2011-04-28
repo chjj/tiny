@@ -20,7 +20,7 @@ with no dependencies. I also wanted it to be simple: There are no schemas and
 nothing you need to know to get started, just store your data: a portable database 
 that you can drag around in a single file.
 
-## A new direction taken with node-tiny
+## How Tiny works...
 
 node-tiny takes advantage of the fact that, normally, when you query for 
 records in a database, you're only comparing small properties (<1kb) in the 
@@ -52,8 +52,9 @@ would use less than 100mb of memory.
 
     var Tiny = require('./tiny');
     Tiny('articles.tiny', function(err, db) {
-      var TIME = Date.now();
-      var low = TIME - (60*60*1000), high = TIME - (30*60*1000);
+      var time = Date.now(),
+          low = time - (60*60*1000), 
+          high = time - (30*60*1000);
       
       // mongo-style query
       db.find({$or: [ 
@@ -79,28 +80,47 @@ would use less than 100mb of memory.
 The mongo-style querying should be fairly self-explanatory. The second query is supposed to be 
 similar to a mapreduce interface, but it's the rough equivalent of a `.filter` function.
 
-Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein if you don't explicitly 
-it will __only__ lookup properties that are under 1kb in size. This is to go easy on the memory. `.each` 
-and `.all` are shallow by default, but they do have a `deep` parameter, (which I don't recommend using).
+Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein it will __only__ 
+lookup properties that are under 1kb in size. This is to go easy on the memory. `.each` and 
+`.all` are shallow by default, but they do have a `deep` parameter, (which I don't recommend using).
 
 You can configure the limit at which properties are no longer cached by calling `Tiny.limit`, 
 which accepts a number of bytes. e.g. `Tiny.limit(1024);`
 
 ## Other Usage
 
+    // save a document
     db.set('myDocument', {
       title: 'a document',
       content: 'hello world'
-    }, function() {
-      // .each is shallow by default
-      db.each(function(doc) { 
-        console.log(doc.title);
-      });
-      db.remove('myDocument'); // delete the object/doc
+    }, function(err) {
+      console.log('set!');
     });
     
+    // .each will iterate through
+    // every object in the database
+    // it is shallow by default
+    db.each(function(doc) { 
+      console.log(doc.title);
+    });
+    
+    // returns every object in the DB
+    // in an array, this is shallow
+    // by default
+    db.all(function(err, docs) {
+      console.log(docs.length);
+    });
+    
+    // remove a doc
+    db.remove('myDocument', function(err) {
+      console.log('deleted');
+    }); 
+    
+    // retrieve an object from the database
     db.get('someOtherThing', function(err, data) {
-      console.log(data._key);
+      // data._key is a property which 
+      // holds the key of every object
+      console.log('found:', data._key); 
     });
     
     // updates the object 
@@ -111,13 +131,48 @@ which accepts a number of bytes. e.g. `Tiny.limit(1024);`
       console.log('done');
     });
     
-    db.close(function() {
+    // close the file descriptor
+    db.close(function(err) {
       console.log('db closed');
     });
     
-    db.compact(function() {
+    // clean up the mess
+    db.compact(function(err) {
       console.log('done');
     });
+    
+    // dump the entire database to a JSON file
+    // in the same directory as the DB file
+    // (with an optional pretty-print parameter)
+    db.dump(true, function(err) {
+      console.log('dump complete');
+    });
+
+## Making data more efficient
+
+Because of the way Tiny works, there are ways to alter your data to make it more 
+memory efficient. For example, if you have several properties on your objects 
+that aren't necessary to for queries, its best to nest them in an object.
+
+    user: {
+      name: 'joe',
+      prop1: 'data',
+      prop2: 'data',
+      prop3: 'data'
+    }
+
+    user: {
+      name: 'joe',
+      data: {
+        prop1: 'data',
+        prop2: 'data',
+        prop3: 'data'
+      }
+    }
+
+That way, the data will not be cached if it exceeds 1kb collectively. Eventually there may be
+an `ignore` method or an `index` method, which will be explicitly inclusive or exclusive to 
+which properties are cached and which properties are able to be referenced within a query.
 
 ## License
 

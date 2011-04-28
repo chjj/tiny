@@ -49,12 +49,12 @@ var Tiny = module.exports = function(name, func) {
   this._load(func);
 };
 
-Tiny.open = Tiny;
-
 var Lookup = function(index) {
   this[0] = index[0];
   this[1] = index[1];
 };
+
+Tiny.open = Tiny;
 
 Tiny.limit = function(n) {
   CACHE_LIMIT = n;
@@ -85,7 +85,7 @@ Tiny.prototype._load = function(func) {
         
         for (var i = 0; i < bytes; i++) {
           if (data[i] === 9) { // tab
-            state = 'line';
+            state = 'data';
             // the key may have been cut off by the transition
             // from one chunk to another, we need to concatenate
             if (start < pos) {
@@ -143,7 +143,7 @@ Tiny.prototype._load = function(func) {
 // curry on an error
 Tiny.prototype._err = function(func, err, ret) {
   err = err || 'Not found.';
-  debug(err+'');
+  debug(err + '');
   return func && func.call(this, new Error(err), ret);
 };
 
@@ -193,61 +193,105 @@ Tiny.prototype.commit = function(func) {
     data = null;
     process.nextTick(function() {
       self._busy = false;
-      func && func.call(self, err);
+      if (func) func.call(self, err);
       self.commit();
     });
   });
 };
 
 // set/insert/save/update a document/object
-Tiny.prototype.set = function(docKey, _doc, func, update) {
+Tiny.prototype._set = function(docKey, _doc, func, flag) {
   var self = this, doc = {}; // the new stringified doc
+  var cache = self._cache;
   
   debug('setting doc :', docKey);
   
-  var cache = self._cache;
-  if (!update) {
-    if (cache[docKey]) {
-      for (var k in cache[docKey]) {
-        if (!(k in _doc)) {
-          doc[k] = stringify(DELETED);
-        }
-      }
+  // if there are any properties in the cache
+  // that were excluded on the input object
+  // need to explicitly mark them as deleted
+  // on the stringified object
+  if (flag !== 'update' && cache[docKey]) {
+    for (var k in cache[docKey]) { 
+      // implictly set _key to DELETED for 'delete'
+      // this assumes ._key is in the cached object
+      if (!(k in _doc)) doc[k] = stringify(DELETED);
     }
-    
-    if (_doc._key !== DELETED) {
-      _doc._key = docKey;
-      cache[docKey] = _doc;
-    } else {
-      delete cache[docKey];
-    }
-  } else {
-    if (!cache[docKey]) cache[docKey] = {};
-    for (var k in _doc) cache[docKey][k] = _doc[k];
   }
   
-  for (var k in _doc) {
-    doc[k] = stringify(_doc[k]);
+  // this works in such a way that it will not
+  // alter the original object at all.
+  // we *could* just have the cache be a reference
+  // to the original object, but if the 
+  // user is unaware of this, it might produce
+  // unexpected results.
+  switch (flag) {
+    case 'set':
+    case 'update':
+      if (flag === 'set' || !cache[docKey]) {
+        cache[docKey] = {_key:docKey};
+      }
+      
+      // shallow copy
+      for (var k in _doc) {
+        cache[docKey][k] = _doc[k];
+        doc[k] = stringify(_doc[k]);
+      }
+      
+      // make sure it has a key
+      doc._key = stringify(docKey);
+      break;
+    case 'delete':
+      delete cache[docKey];
+      break;
   }
+  
+  // the "cache with a reference" code
+  /*_doc._key = docKey; // alter to ensure _key
+  
+  switch (flag) {
+    case 'set':
+      cache[docKey] = _doc;
+      for (var k in _doc) {
+        doc[k] = stringify(_doc[k]);
+      }
+      break;
+    case 'update':
+      if (!cache[docKey]) {
+        cache[docKey] = {};
+      }
+      for (var k in _doc) {
+        cache[docKey][k] = _doc[k];
+        doc[k] = stringify(_doc[k]);
+      }
+      break;
+    case 'delete':
+      delete cache[docKey];
+      break;
+  }*/
   
   self._queue.push({
     docKey: docKey, 
     doc: doc, 
     func: func
   });
+  
   if (func) self.commit();
+};
+
+Tiny.prototype.set = function(docKey, doc, func) {
+  return this._set(docKey, doc, func, 'set');
 };
 
 // updates the document, do not overwrite missing properties.
 Tiny.prototype.update = function(docKey, doc, func) {
   if (!this._cache[docKey]) return this._err(func, 'No such key.'); 
-  return this.set(docKey, doc, func, true);
+  return this._set(docKey, doc, func, 'update');
 };
 
 // remove a document...
 Tiny.prototype.remove = function(docKey, func) {
   if (!this._cache[docKey]) return this._err(func, 'No such key.'); 
-  return this.set(docKey, { _key: DELETED }, func); 
+  return this._set(docKey, {}, func, 'delete'); 
 };
 
 // grab an text excerpt from the FD 
@@ -297,7 +341,7 @@ Tiny.prototype.get = function(docKey, func, shallow) {
       loop();
     }
   }, function() {
-    func && func.call(self, null, doc);
+    if (func) func.call(self, null, doc);
   });
 };
 
@@ -310,7 +354,7 @@ Tiny.prototype.all = function(func, deep) {
   self.fetch(function() {
     return true;
   }, function(err, docs) {
-    func && func.call(self, err, docs); 
+    if (func) func.call(self, err, docs); 
   }, !deep);
 };
 
@@ -333,7 +377,7 @@ Tiny.prototype.close = function(func) {
   fs.close(self._fd, function() {
     delete self._fd;
     self._busy = false;
-    func && func.call(self);
+    if (func) func.call(self);
   });
 };
 
@@ -362,12 +406,57 @@ Tiny.prototype.compact = function(func) {
   }, true); 
 };
 
+// dump the entire database to a single JSON file
+// the "pretty" parameter will pretty print the JSON
+// $ node
+// > require('tiny')('mydb.tiny').dump(true);
+Tiny.prototype.dump = function(pretty, func) {
+  var self = this, data = {};
+  if (typeof pretty === 'function') { 
+    func = pretty; 
+    pretty = undefined; 
+  }
+  if (!self._total) { // a hack in case the db hasnt loaded
+    return setTimeout(function() { self.dump(pretty, func); }, 500);
+  }
+  self.all(function(err, docs) {
+    if (err) { 
+      console.log('Tiny: Dump failed.');
+      return self._err(func, 'Dump failed.');
+    }
+    docs.forEach(function(doc) {
+      data[doc._key] = doc;
+      delete doc._key;
+    });
+    data = JSON.stringify(data, null, pretty ? 2 : 0);
+    fs.writeFile(self.name + '.json', data, func);
+    console.log('Tiny: Dump was successful.');
+    data = null; // kill references to make
+    docs = null; // sure the GC cleans up
+  }, true);
+};
+
+// hypothetical features...
+
+// "dont cache these properties"
+// might not be especially helpful as a lookup
+// object might use more memory than the data itself
+// Tiny.prototype.ignore = function() {
+//   if (!db._ignore) db._ignore = [];
+//   db._ignore = db._ignore.concat(_slice.call(arguments));
+// };
+
+// "only cache these properties"
+// Tiny.prototype.index = function() {
+//   if (!db._index) db._index = [];
+//   db._index = db._index.concat(_slice.call(arguments));
+// };
+
 // ======================= QUERYING ======================= //
 Tiny.prototype.fetch = function(map, done, shallow) {
   var self = this, docs = [];
   para(self._cache, function(loop, cache, docKey, cur) {
-    var ret = map.call(self, cache, cur);
-    if (ret === true) {
+    if (map.call(self, cache, cur) === true) {
       self.get(docKey, function(err, doc) {
         docs.push(doc);
         loop();
@@ -379,7 +468,7 @@ Tiny.prototype.fetch = function(map, done, shallow) {
     if (!docs.length) {
       return done.call(self, new Error('No Records'), docs);
     }
-    done.call(self, null, docs);
+    if (done) done.call(self, null, docs);
   });
 };
 
@@ -597,9 +686,9 @@ var para = function(obj, looper, func) {
   var next = function() {
     if (++cur === l) func && func();
   };
-  for (; i < l; i++) (function(val, key) {
-    looper(next, val, key, cur);
-  })(obj[k[i]], k[i]);
+  for (; i < l; i++) {
+    looper(next, obj[k[i]], k[i], cur);
+  }
 };
 
 // safe stringify
