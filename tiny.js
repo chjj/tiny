@@ -464,8 +464,7 @@ Tiny.prototype.fetch = function(opt, filter, done) {
   if (opt.limit) {
     keys = keys.slice(0, opt.limit);
   }
-  para(keys, function(loop, cache, i) {
-    var docKey = keys[i];
+  para(keys, function(loop, docKey) {
     if (filter.call(self, self._cache[docKey], docKey) === true) {
       self.get(docKey, function(err, doc) {
         if (!err) results.push(doc);
