@@ -317,6 +317,7 @@ Tiny.prototype.get = function(docKey, func, shallow) {
   if (!cache) return self._err(func);
   var doc = {};
   para(cache, function(loop, prop, propKey) {
+    //if (select.indexOf(propKey) === -1) return loop();
     if (!shallow && cache[propKey] instanceof Lookup) {
       self._lookup(cache[propKey], function(err, data) {
         doc[propKey] = data;
@@ -412,8 +413,10 @@ Tiny.prototype.dump = function(pretty, func) {
       delete doc._key;
     });
     data = JSON.stringify(data, null, pretty ? 2 : 0);
-    fs.writeFile(self.name + '.json', data, func);
-    console.log('Tiny: Dump was successful.');
+    fs.writeFile(self.name + '.json', data, function(err) {
+      func.call(self, err);
+      if (!err) console.log('Tiny: Dump was successful.');
+    });
     data = null; // kill references to make
     docs = null; // sure the GC cleans up
   }, true);
@@ -436,22 +439,48 @@ Tiny.prototype.dump = function(pretty, func) {
 // };
 
 // ======================= QUERYING ======================= //
-Tiny.prototype.fetch = function(map, done, shallow) {
-  var self = this, docs = [];
-  para(self._cache, function(loop, cache, docKey, cur) {
-    if (map.call(self, cache, cur) === true) {
+Tiny.prototype.fetch = function(opt, filter, done) {
+  var self = this, results = [], keys;
+  if (!done) {
+    done = filter;
+    filter = opt;
+    opt = {};
+  }
+  if (opt.desc || opt.asc) {
+    keys = (function() {
+      var order = opt.asc ? 'asc' : 'desc',
+          prop = opt.asc || opt.desc,
+          keys = sort[order](self._cache, prop);
+      return keys.map(function(v) {
+        return v._key;
+      });
+    })();
+  } else {
+    keys = Object.keys(self._cache);
+  }
+  if (opt.skip) {
+    keys = keys.slice(opt.skip);
+  }
+  if (opt.limit) {
+    keys = keys.slice(0, opt.limit);
+  }
+  para(keys, function(loop, cache, i) {
+    var docKey = keys[i];
+    if (filter.call(self, self._cache[docKey], docKey) === true) {
       self.get(docKey, function(err, doc) {
-        docs.push(doc);
+        if (!err) results.push(doc);
         loop();
-      }, shallow);
+      }, opt.shallow);
     } else { 
       loop();
     }
   }, function() {
-    if (!docs.length) {
-      return done.call(self, new Error('No Records'), docs);
+    if (!results.length) {
+      return done.call(self, new Error('No Records'), results);
     }
-    if (done) done.call(self, null, docs);
+    if (opt.one || opt.single) results = results[0];
+    if (opt.count) results = results.length;
+    if (done) done.call(self, null, results);
   });
 };
 
@@ -557,53 +586,15 @@ Tiny.prototype.query = (function() {
     };
   })();
   
-  // sorting functions for queries
-  var sort = function(obj) {
-    var keys = _slice.call(arguments, 1); 
-    return toArray(obj).filter(function(v) { 
-      keys.forEach(function(k) { if (v) v = v[k]; });
-      return !!(v !== undefined);
-    }).sort(function(a, b) {
-      keys.forEach(function(k) { a = a[k]; b = b[k]; }); 
-      if (!/^[\d.]+$/.test(a)) {
-        a = (a+'').toLowerCase().charCodeAt(0);
-        b = (b+'').toLowerCase().charCodeAt(0);
-      }
-      return a > b ? 1 : (a < b ? -1 : 0);
-    });
-  };
-  sort.asc = function() {
-    return sort.apply(this, arguments);
-  };
-  sort.desc = function() {
-    return sort.apply(this, arguments).reverse();
-  };
-  
-  // expose these as class methods
-  Tiny.sort = sort;
-  
   // the actual .query() function
-  return function query(where, func, options) {
-    var self = this;
+  return function query(where, func, opt) {
     where = where || {};
-    options = options || {};
-    var skip = options.skip || 0, limit = options.limit; 
-    self.fetch(function(doc, total) { 
-      if (total < skip) return 'continue';
-      if (limit && (total-skip) > limit) return 'break';
+    opt = opt || {};
+    this.fetch(opt, function(doc) { 
       if (testStatement(where, doc)) {
         return true;
       }
-    }, function(err, results) {
-      if (options.desc) {
-        results = sort.desc.apply(null, [results].concat(options.desc));
-      } else if (options.asc) {
-        results = sort.asc.apply(null, [results].concat(options.asc));
-      }
-      if (options.one) results = results[0];
-      if (options.count) results = results.length;
-      if (func) func.call(self, null, results);
-    }, options.shallow);
+    }, func);
   };
 })();
 
@@ -614,48 +605,48 @@ Tiny.prototype.find = function() {
   if (typeof args[1] === 'function') {
     return self.query.apply(self, args);
   }
-  var options = {};
+  var opt = {};
   var chain = function(func) {
-    return self.query.apply(self, args.concat(func, options));
+    return self.query.apply(self, args.concat(func, opt));
   };
   // doesnt work at the moment
-  // may be removed
+  // may be removed entirely
   chain.select = function() { 
-    options.select = Array.isArray(arguments[0]) 
+    opt.select = Array.isArray(arguments[0]) 
       ? arguments[0] 
       : _slice.call(arguments)
     ;
     return chain;
   };
   chain.count = function() {
-    options.count = true;
+    opt.count = true;
     return chain;
   };
-  chain.desc = function() {
-    options.desc = _slice.call(arguments);
+  chain.desc = function(prop) {
+    opt.desc = prop;
     return chain;
   };
-  chain.asc = function() {
-    options.asc = _slice.call(arguments);
+  chain.asc = function(prop) {
+    opt.asc = prop;
     return chain;
   };
   chain.limit = function(limit) {
-    options.limit = limit;
+    opt.limit = limit;
     return chain;
   };
   chain.skip = function(skip) {
-    options.skip = skip;
+    opt.skip = skip;
     return chain;
   };
   // if shallow is true, only properties less than 1kb are available to the doc object
   // when no properties are explicitly selected
   chain.shallow = function() {
-    options.shallow = true;
+    opt.shallow = true;
     return chain;
   };
   chain.one = function() {
-    options.one = true;
-    options.limit = 1;
+    opt.one = true;
+    opt.limit = 1;
     return chain;
   };
   return chain;
@@ -664,15 +655,41 @@ Tiny.prototype.find = function() {
 // ========== helper functions ========== //
 var _slice = [].slice;
 
+// sorting functions for queries
+var sort = function(obj) {
+  var keys = _slice.call(arguments, 1); 
+  return toArray(obj).filter(function(v) { 
+    keys.forEach(function(k) { if (v) v = v[k]; });
+    return !!(v !== undefined);
+  }).sort(function(a, b) {
+    keys.forEach(function(k) { a = a[k]; b = b[k]; }); 
+    if (!/^[\d.]+$/.test(a)) {
+      a = (a+'').toLowerCase().charCodeAt(0);
+      b = (b+'').toLowerCase().charCodeAt(0);
+    }
+    return a > b ? 1 : (a < b ? -1 : 0);
+  });
+};
+sort.asc = function() {
+  return sort.apply(this, arguments);
+};
+sort.desc = function() {
+  return sort.apply(this, arguments).reverse();
+};
+
 var para = function(obj, looper, func) {
-  var cur = 0, k = Object.keys(obj), 
-      i = 0, l = k.length;
+  var c = 0, i = 0, l, k, key;
+  if (typeof obj.length !== 'number') {
+    k = Object.keys(obj);
+  }
+  l = (k || obj).length;
   if (!l) return func && func();
   var next = function() {
-    if (++cur === l) func && func();
+    if (++c === l) func && func();
   };
   for (; i < l; i++) {
-    looper(next, obj[k[i]], k[i], cur);
+    key = k ? k[i] : i;
+    looper(next, obj[key], key, c);
   }
 };
 

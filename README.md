@@ -62,18 +62,20 @@ would use less than 100mb of memory.
         { timestamp: { $gte: high } }  
       ]}).desc('timestamp')
       .limit(3)(function(err, results) {
-        console.log('RESULTS:', results);
+        console.log('Results:', results);
       });
       
       // is equivalent to:
-      db.fetch(function(doc, total) {
-        if (total === 3) return;
+      db.fetch({
+        desc: 'timestamp',
+        limit: 3
+      }, function(doc, key) {
         if (doc.timestamp <= low || doc.timestamp >= high) {
-          console.log('found', doc._key); 
+          console.log('Found:', key); 
           return true;
         }
       }, function(err, results) {
-        console.log('RESULTS:', Tiny.sort.desc(results, 'timestamp'));
+        console.log('Results:', Tiny.sort.desc(results, 'timestamp'));
       });
     });
 

@@ -47,7 +47,7 @@ function(next) {
   db.query({two: 'hi'}, function(err, results) {
     console.log('RESULTS:', results);
     next();
-  }, {select: ['four']});
+  });
 },
 function(next) {
   db.find({num: { $gte: 72 }, two: { $eq: 'hi' }})
@@ -75,34 +75,33 @@ function(next) {
   db = Tiny(__dirname+'/test.tiny', next);
 },
 function(next) {
-  db.fetch(function(doc, total) { // ['num'], 
-    if (total === 3) return 'break';
+  db.fetch({desc: 'num', limit: 3}, function(doc, total) { 
     if (doc.num > 82 || doc.num === 82) {
       console.log('found', doc._key); 
       return true;
     }
   }, function(err, results) {
-    console.log(db._cache);
-    console.log('RESULTS:', Tiny.sort.desc(results, 'num'));
+    //console.log(db._cache);
+    console.log('RESULTS:', results);
     next();
   });
 },
 function(next) {
-  var a = '', i = 5000;
-  while (i--) a += 'a';
+  var str = '', i = 10000;
+  while (i--) str += 'a';
   db.set('other', {
     prop1: 'hello',
     prop2: 'world',
-    big: a
+    big: str
   }, function() {
     //console.log(db._cache);
-    next(a);
+    next(str);
   });
 },
-function(a) {
+function(str) {
   db.get('other', function(err, data) {
-    assert.ok(data.big === a, 'selective caching failed');
-    if (data.big === a) console.log('done');
+    assert.ok(data.big === str, 'selective caching failed');
+    if (data.big === str) console.log('done');
   });
 }
 );
