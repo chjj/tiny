@@ -75,7 +75,7 @@ would use less than 100mb of memory.
           return true;
         }
       }, function(err, results) {
-        console.log('Results:', Tiny.sort.desc(results, 'timestamp'));
+        console.log('Results:', results);
       });
     });
 
