@@ -414,7 +414,7 @@ Tiny.prototype.dump = function(pretty, func) {
     });
     data = JSON.stringify(data, null, pretty ? 2 : 0);
     fs.writeFile(self.name + '.json', data, function(err) {
-      func.call(self, err);
+      if (func) func.call(self, err);
       if (!err) console.log('Tiny: Dump was successful.');
     });
     data = null; // kill references to make
