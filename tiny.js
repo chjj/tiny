@@ -317,7 +317,6 @@ Tiny.prototype.get = function(docKey, func, shallow) {
   if (!cache) return self._err(func);
   var doc = {};
   para(cache, function(loop, prop, propKey) {
-    //if (select.indexOf(propKey) === -1) return loop();
     if (!shallow && cache[propKey] instanceof Lookup) {
       self._lookup(cache[propKey], function(err, data) {
         doc[propKey] = data;
@@ -446,6 +445,7 @@ Tiny.prototype.fetch = function(opt, filter, done) {
     filter = opt;
     opt = {};
   }
+  if (opt.count) results = 0;
   if (opt.desc || opt.asc) {
     keys = (function() {
       var order = opt.asc ? 'asc' : 'desc',
@@ -466,6 +466,10 @@ Tiny.prototype.fetch = function(opt, filter, done) {
   }
   para(keys, function(loop, docKey) {
     if (filter.call(self, self._cache[docKey], docKey) === true) {
+      if (opt.count) {
+        results++;
+        return loop();
+      }
       self.get(docKey, function(err, doc) {
         if (!err) results.push(doc);
         loop();
@@ -474,11 +478,10 @@ Tiny.prototype.fetch = function(opt, filter, done) {
       loop();
     }
   }, function() {
-    if (!results.length) {
+    if (!results || !results.length) {
       return done.call(self, new Error('No Records'), results);
     }
     if (opt.one || opt.single) results = results[0];
-    if (opt.count) results = results.length;
     if (done) done.call(self, null, results);
   });
 };
@@ -655,16 +658,15 @@ Tiny.prototype.find = function() {
 var _slice = [].slice;
 
 // sorting functions for queries
-var sort = function(obj) {
-  var keys = _slice.call(arguments, 1); 
+var sort = function(obj, key) {
   return toArray(obj).filter(function(v) { 
-    keys.forEach(function(k) { if (v) v = v[k]; });
+    if (v) v = v[key];
     return !!(v !== undefined);
   }).sort(function(a, b) {
-    keys.forEach(function(k) { a = a[k]; b = b[k]; }); 
+    a = a[key]; b = b[key];
     if (!/^[\d.]+$/.test(a)) {
-      a = (a+'').toLowerCase().charCodeAt(0);
-      b = (b+'').toLowerCase().charCodeAt(0);
+      a = (a + '').toLowerCase().charCodeAt(0);
+      b = (b + '').toLowerCase().charCodeAt(0);
     }
     return a > b ? 1 : (a < b ? -1 : 0);
   });
