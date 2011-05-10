@@ -16,7 +16,7 @@
 var fs = require('fs');
 
 // debug messages?
-var _DEBUG = true; 
+var _DEBUG = false; 
 
 // the amount of bytes at which properties 
 // are no longer cached, 1kb by default
@@ -336,9 +336,13 @@ Tiny.prototype.get = function(docKey, func, shallow) {
 // only lookup and include properties smaller
 // than the cache limit (<1kb)
 Tiny.prototype.all = function(func, deep) { 
-  this.fetch(function() {
-    return true;
-  }, func, !deep);
+  this.fetch(
+    {shallow: !deep}, 
+    function() {
+      return true;
+    }, 
+    func
+  );
 };
 
 // iterate through *every* document
