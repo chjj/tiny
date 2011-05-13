@@ -20,7 +20,7 @@ var data = {
 var assert = require('assert');
 var fs = require('fs');
 
-var Tiny = require('../tiny');
+var Tiny = require('../');
 
 // a step-like function
 var next = function() {

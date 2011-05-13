@@ -1,7 +1,7 @@
 var assert = require('assert');
 var fs = require('fs');
 
-var Tiny = require('../tiny');
+var Tiny = require('../');
 
 // mock data
 var data = require('./data');
