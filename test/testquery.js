@@ -36,13 +36,13 @@ var next = function() {
 };
 
 try { // delete the old test db
-  fs.unlinkSync(__dirname + '/test.tiny');
+  fs.unlinkSync(__dirname + '/../.data/test.tiny');
 } catch(e) {}
 
 var db;
 next(
   function(next) {
-    db = Tiny(__dirname + '/test.tiny', next);
+    db = Tiny('test.tiny', next);
   }, function(next) {
     db.set('one', data.one, function() {
       db.set('two', data.two, function() {
