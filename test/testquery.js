@@ -36,7 +36,7 @@ var next = function() {
 };
 
 try { // delete the old test db
-  fs.unlinkSync(__dirname + '/../.data/test.tiny');
+  //fs.unlinkSync(__dirname + '/../.data/test.tiny');
 } catch(e) {}
 
 var db;
