@@ -4,11 +4,6 @@ __node-tiny__ is an in-process document/object store for node.js.
 
 It is largely inspired by [nStore](https://github.com/creationix/nstore), 
 however, its goal was to implement real querying which goes easy on the memory. 
-It stores data as flattened stringified objects. This allows queries to select 
-specific byte-ranges from the file descriptor to lookup individual properties. 
-The main benefit of this is that it doesn't cache properties larger than 1kb in 
-size. This may make it more realistic to perhaps run a large weblog with, for 
-example.
 
 It supports mongo-style querying, or alternatively a mapreduce-like
 interface similar to CouchDB's views (this isn't needless fluff by the way, 
@@ -27,8 +22,8 @@ database that you can drag around in a single file.
 
 ## How Tiny works...
 
-node-tiny takes advantage of the fact that, normally, when you query for 
-records in a database, you're only comparing small properties (<1kb) in the 
+Tiny takes advantage of the fact that, normally, when you query for 
+records in a database, you're only comparing small properties (<128b) in the 
 query itself. For example, when you query for articles on a weblog, you'll 
 usually only be comparing the timestamp of the article, the title, the author, 
 the category, the tags, etc. - pretty much everything except the content of 
@@ -36,7 +31,7 @@ the article itself.
 
 Tiny stores each document/object's property individually in the DB file and 
 caches all the small properties into memory when the DB loads, leaving anything 
-above 1kb behind. When a query is performed, Tiny only lets you compare the 
+above 128b behind. When a query is performed, Tiny only lets you compare the 
 properties stored in memory, which is what you were going to do anyway. Once 
 the query is complete, Tiny will perform lookups on the FD to grab the large 
 properties and put them in their respective objects before results are returned 
@@ -90,7 +85,7 @@ supposed to be similar to a mapreduce interface, but it's the rough equivalent
 of a `.filter` function.
 
 Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein 
-it will __only__ lookup properties that are under 1kb in size. This is to go 
+it will __only__ lookup properties that are under 128b in size. This is to go 
 easy on the memory. `.each` and `.all` are shallow by default, but they do have 
 a `deep` parameter, (which I don't recommend using).
 
@@ -180,7 +175,7 @@ that aren't necessary to for queries, its best to nest them in an object.
       }
     }
 
-That way, the data will not be cached if it exceeds 1kb collectively. Eventually 
+That way, the data will not be cached if it exceeds 128b collectively. Eventually 
 there may be an `ignore` method or an `index` method, which will be explicitly 
 inclusive or exclusive to which properties are cached and which properties are 
 able to be referenced within a query.
