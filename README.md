@@ -51,34 +51,38 @@ articles would use less than 100mb of memory.
 
 ## Example Querying
 
-    var Tiny = require('./tiny');
-    Tiny('articles.tiny', function(err, db) {
-      var time = Date.now(),
-          low = time - (60*60*1000), 
-          high = time - (30*60*1000);
-      
-      // mongo-style query
-      db.find({$or: [ 
-        { timestamp: { $lte: low } }, 
-        { timestamp: { $gte: high } }  
-      ]}).desc('timestamp')
-      .limit(3)(function(err, results) {
-        console.log('Results:', results);
-      });
-      
-      // is equivalent to:
-      db.fetch({
-        desc: 'timestamp',
-        limit: 3
-      }, function(doc, key) {
-        if (doc.timestamp <= low || doc.timestamp >= high) {
-          console.log('Found:', key); 
-          return true;
-        }
-      }, function(err, results) {
-        console.log('Results:', results);
-      });
-    });
+``` js
+var Tiny = require('./tiny');
+Tiny('articles.tiny', function(err, db) {
+  var time = Date.now()
+    , low = time - (60*60*1000)
+    , high = time - (30*60*1000);
+
+  // mongo-style query
+  db.find({$or: [ 
+    { timestamp: { $lte: low } }, 
+    { timestamp: { $gte: high } }  
+  ]})
+  .desc('timestamp')
+  .limit(3)(function(err, results) {
+    console.log('Results:', results);
+  });
+
+  // is equivalent to...
+  db.fetch({
+    desc: 'timestamp',
+    limit: 3
+  }, function(doc, key) {
+    if (doc.timestamp <= low 
+        || doc.timestamp >= high) {
+      console.log('Found:', key); 
+      return true;
+    }
+  }, function(err, results) {
+    console.log('Results:', results);
+  });
+});
+```
 
 The mongo-style querying should be fairly self-explanatory. The second query is 
 supposed to be similar to a mapreduce interface, but it's the rough equivalent 
@@ -94,64 +98,66 @@ You can configure the limit at which properties are no longer cached by calling
 
 ## Other Usage
 
-    // save a document
-    db.set('myDocument', {
-      title: 'a document',
-      content: 'hello world'
-    }, function(err) {
-      console.log('set!');
-    });
-    
-    // .each will iterate through
-    // every object in the database
-    // it is shallow by default
-    db.each(function(doc) { 
-      console.log(doc.title);
-    });
-    
-    // returns every object in the DB
-    // in an array, this is shallow
-    // by default
-    db.all(function(err, docs) {
-      console.log(docs.length);
-    });
-    
-    // remove a doc
-    db.remove('myDocument', function(err) {
-      console.log('deleted');
-    }); 
-    
-    // retrieve an object from the database
-    db.get('someOtherThing', function(err, data) {
-      // data._key is a property which 
-      // holds the key of every object
-      console.log('found:', data._key); 
-    });
-    
-    // updates the object 
-    // without overwriting its other properties
-    db.update('article_1', { 
-      title: 'new title'
-    }, function(err) {
-      console.log('done');
-    });
-    
-    // close the file descriptor
-    db.close(function(err) {
-      console.log('db closed');
-    });
-    
-    // clean up the mess
-    db.compact(function(err) {
-      console.log('done');
-    });
-    
-    // dump the entire database to a JSON file
-    // in the same directory as the DB file
-    // (with an optional pretty-print parameter)
-    db.dump(true, function(err) {
-      console.log('dump complete');
-    });
+``` js
+// save a document
+db.set('myDocument', {
+  title: 'a document',
+  content: 'hello world'
+}, function(err) {
+  console.log('set!');
+});
+
+// .each will iterate through
+// every object in the database
+// it is shallow by default
+db.each(function(doc) { 
+  console.log(doc.title);
+});
+
+// returns every object in the DB
+// in an array, this is shallow
+// by default
+db.all(function(err, docs) {
+  console.log(docs.length);
+});
+
+// remove a doc
+db.remove('myDocument', function(err) {
+  console.log('deleted');
+}); 
+
+// retrieve an object from the database
+db.get('someOtherThing', function(err, data) {
+  // data._key is a property which 
+  // holds the key of every object
+  console.log('found:', data._key); 
+});
+
+// updates the object 
+// without overwriting its other properties
+db.update('article_1', { 
+  title: 'new title'
+}, function(err) {
+  console.log('done');
+});
+
+// close the file descriptor
+db.close(function(err) {
+  console.log('db closed');
+});
+
+// clean up the mess
+db.compact(function(err) {
+  console.log('done');
+});
+
+// dump the entire database to a JSON file
+// in the same directory as the DB file
+// (with an optional pretty-print parameter)
+db.dump(true, function(err) {
+  console.log('dump complete');
+});
+```
 
 ## Making data more efficient
 
@@ -159,21 +165,23 @@ Because of the way Tiny works, there are ways to alter your data to make it more
 memory efficient. For example, if you have several properties on your objects 
 that aren't necessary to for queries, its best to nest them in an object.
 
-    user: {
-      name: 'joe',
-      prop1: 'data',
-      prop2: 'data',
-      prop3: 'data'
-    }
+``` js
+user: {
+  name: 'joe',
+  prop1: 'data',
+  prop2: 'data',
+  prop3: 'data'
+}
 
-    user: {
-      name: 'joe',
-      data: {
-        prop1: 'data',
-        prop2: 'data',
-        prop3: 'data'
-      }
-    }
+user: {
+  name: 'joe',
+  data: {
+    prop1: 'data',
+    prop2: 'data',
+    prop3: 'data'
+  }
+}
+```
 
 That way, the data will not be cached if it exceeds 128b collectively. Eventually 
 there may be an `ignore` method or an `index` method, which will be explicitly 
