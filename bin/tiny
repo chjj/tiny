@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+
+/**
+ * Tiny
+ */
+
+var Tiny = require('../');
+
+/**
+ * Actions
+ */
+
+var actions = {
+  dump: function(pretty) {
+    this.dump(!!pretty, function(err) {
+      if (err) throw err;
+      console.log('Tiny: Database dumped successfully.');
+    });
+  },
+  compact: function() {
+    var size = this.size;
+    this.compact(function(err) {
+      if (err) throw err;
+      console.log('Tiny: Database compacted successfully.');
+      console.log('Old size: %s. New size: %s', size, this.size);
+    });
+  }
+};
+
+// argument parsing here is weird
+// needs to be improved, and currently 
+// only dump and compact are supported
+
+var main = function(name, action, args) {
+  action = action.replace(/^-+/, '');
+  Tiny(name, function(err, db) {
+    if (err) throw err;
+    if (!actions[action]) {
+      throw new 
+        Error('Argument not recognized.');
+    }
+    actions[action].apply(db, args);
+  });
+};
+
+main(process.argv[2], process.argv[3], process.argv.slice(4));
