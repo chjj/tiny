@@ -1,5 +1,5 @@
 {
-  "name": "node-tiny",
+  "name": "tiny",
   "description": "an in-process database",
   "author": "Christopher Jeffrey",
   "version": "0.0.4",
