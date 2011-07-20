@@ -18,7 +18,7 @@ database that you can drag around in a single file.
 
 ## Install
 
-    $ npm install node-tiny
+    $ npm install tiny
 
 ## How Tiny works...
 
