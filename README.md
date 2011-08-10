@@ -260,17 +260,17 @@ db.close(function(err) {
 
 <a name="kill" />
 ### kill(func)
-Closes the Tiny database and then loads it again.
+Closes the Tiny database file, deletes the file and all the data in the database, and then creates a new database with the same name and file.
 
 __Arguments__
 
-* func() - callback function after the database has been reloaded.
+* func() - callback function after the database has been reloaded
 
 __Example__
 
 ``` js
 db.kill(function(err) {
-  console.log('db has been reloaded');
+  console.log('db has been destroyed and a new db has been loaded');
 });
 ```
 
