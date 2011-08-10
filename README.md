@@ -188,6 +188,152 @@ there may be an `ignore` method or an `index` method, which will be explicitly
 inclusive or exclusive to which properties are cached and which properties are 
 able to be referenced within a query.
 
+## Documentation
+### Database
+* [Construction](#construction)
+* [dump](#dump)
+* [close](#close)
+* [kill](#kill)
+
+### Querying
+* [set](#set)
+* [each](#each)
+* [all](#all)
+
+## Database
+<a name="construction" />
+### Tiny(name, callback)
+Creates and returns a database with the given name.
+
+__Arguments__
+
+* name - filename to store and load the Tiny database
+* callback(err, db) - Called after the database file is opened and loaded
+
+__Example__
+
+``` js
+var tinydb;
+Tiny('articles.tiny', function(err, db) {
+    tinydb = db;
+});
+```
+
+---------------------------------------
+
+<a name="dump" />
+### dump(pretty, func) or dump(func)
+Dumps the a database to a JSON file with the name as name.json. Pretty specifies whether to indent each line with two spaces or not. Alternatively, dump(func) can be called.
+
+__Arguments__
+
+* pretty - if true, the JSON file will be indented with two spaces
+* func(err) - called after the dump is complete.
+
+__Example__
+
+``` js
+db.dump(true, function(err) {
+  console.log('dump complete');
+});
+```
+
+---------------------------------------
+
+<a name="close" />
+### close(func)
+Closes the Tiny database file handle. A new Tiny object must be made to reopen the file.
+
+__Arguments__
+
+* func() - callback function after the database has been closed
+
+__Example__
+
+``` js
+db.close(function(err) {
+  console.log('db closed');
+});
+```
+
+---------------------------------------
+
+<a name="kill" />
+### kill(func)
+Closes the Tiny database file, deletes the file and all the data in the database, and then creates a new database with the same name and file.
+
+__Arguments__
+
+* func() - callback function after the database has been reloaded
+
+__Example__
+
+``` js
+db.kill(function(err) {
+  console.log('db has been destroyed and a new db has been loaded');
+});
+```
+
+## Querying
+<a name="set" />
+### set(docKey, doc, func)
+Saves a object `doc` to database under the key `docKey`. Ideally, docKey should be 128b or smaller.
+
+__Arguments__
+
+* docKey - a key to search the database for
+* doc - an object to save to the database under the given key
+* func - callback function after the doc object has been saved to the database
+
+__Example__
+
+``` js
+db.set('myDocument', {
+  title: 'a document',
+  content: 'hello world'
+}, function(err) {
+  console.log('set!');
+});
+```
+
+---------------------------------------
+
+<a name="each" />
+### each(func, deep) or each(func)
+Iterates through every object in the database.
+
+__Arguments__
+
+* func(doc) - Callback function that is called with every iterated object `doc` from the database
+* deep - `true` if every object should be returned, `false` or unset if only cacheable objects should be returned (ones smaller than 128b)
+
+__Example__
+
+``` js
+db.each(function(doc) {
+  console.log(doc.title);
+});
+```
+
+---------------------------------------
+
+<a name="all" />
+### all(func, deep) or all(func)
+Returns an array containing all the objects in the database. By default, it will only return cacheable objects (ones smaller than 128b).
+
+__Arguments__
+
+* func(err, docs) - Callback function called with `docs`, the entire array of objects from the database
+* deep - `true` if every object should be returned, `false` or unset if only cacheable objects should be returned (ones smaller than 128b)
+
+__Example__
+
+``` js
+db.all(function(err, docs) {
+  console.log(docs.length);
+});
+```
+
 ## License
 
 See LICENSE (MIT).
