@@ -194,6 +194,7 @@ able to be referenced within a query.
 * [dump](#dump)
 * [close](#close)
 * [kill](#kill)
+
 ### Querying
 * [set](#set)
 * [each](#each)
