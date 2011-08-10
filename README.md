@@ -188,6 +188,49 @@ there may be an `ignore` method or an `index` method, which will be explicitly
 inclusive or exclusive to which properties are cached and which properties are 
 able to be referenced within a query.
 
+## Documentation
+### Database
+* [Construction](#construction)
+* [dump](#dump)
+
+## Database
+<a name="construction" />
+### Tiny(name, callback)
+Creates and returns a database with the given name.
+
+__Arguments__
+
+* name - filename to store and load the Tiny database
+* callback(err, db) - Called after the database file is opened and loaded
+
+__Example__
+
+``` js
+var tinydb;
+Tiny('articles.tiny', function(err, db) {
+    tinydb = db;
+});
+```
+
+---------------------------------------
+
+<a name="dump" />
+### dump(pretty, func) or dump(func)
+Dumps the a database to a JSON file with the name as name.json. Pretty specifies whether to indent each line with two spaces or not. Alternatively, dump(func) can be called.
+
+__Arguments__
+
+* pretty - if true, the JSON file will be indented with two spaces
+* func(err) - called after the dump is complete.
+
+__Example__
+
+``` js
+db.dump(true, function(err) {
+  console.log('dump complete');
+});
+```
+
 ## License
 
 See LICENSE (MIT).
