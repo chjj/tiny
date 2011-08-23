@@ -5,16 +5,9 @@ __node-tiny__ is an in-process document/object store for node.js.
 It is largely inspired by [nStore](https://github.com/creationix/nstore), 
 however, its goal was to implement real querying which goes easy on the memory. 
 
-It supports mongo-style querying, or alternatively a mapreduce-like
-interface similar to CouchDB's views (this isn't needless fluff by the way, 
-the function is used internally). 
-
-* * *
-
-It's called node-tiny because I challenged myself to keep it to a single JS file
-with no dependencies. I also wanted it to be simple: There are no schemas and 
-nothing you need to know to get started, just store your data: a portable 
-database that you can drag around in a single file.
+Tiny is very simple, there are no schemas, just store your objects. It supports 
+mongo-style querying, or alternatively a "mapreduce-like" interface similar to 
+CouchDB's views.
 
 ## Install
 
@@ -159,7 +152,7 @@ db.dump(true, function(err) {
 });
 ```
 
-## Making data more efficient
+## Making data more memory efficient
 
 Because of the way Tiny works, there are ways to alter your data to make it more 
 memory efficient. For example, if you have several properties on your objects 
@@ -215,7 +208,8 @@ __Example__
 ``` js
 var tinydb;
 Tiny('articles.tiny', function(err, db) {
-    tinydb = db;
+  tinydb = db;
+  ...
 });
 ```
 
