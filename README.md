@@ -301,6 +301,7 @@ Iterates through every object in the database.
 __Arguments__
 
 * func(doc) - Callback function that is called with every iterated object `doc` from the database
+* done() - Callback to be executed after the iterations complete.
 * deep - `true` if every object should be returned, `false` or unset if only cacheable objects should be returned (ones smaller than 128b)
 
 __Example__
@@ -308,6 +309,8 @@ __Example__
 ``` js
 db.each(function(doc) {
   console.log(doc.title);
+}, function() {
+  console.log('done');
 });
 ```
 
