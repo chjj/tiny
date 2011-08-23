@@ -23,12 +23,12 @@ var next = function() {
 
 // delete the old test db
 try { 
-  fs.unlinkSync('./test.tiny');
+  fs.unlinkSync(__dirname + '/test.tiny');
 } catch(e) {}
 
 next(
   function(next) {
-    db = Tiny('./test.tiny', next);
+    db = Tiny(__dirname + '/test.tiny', next);
   },
   function(next) {
     db.set('one', data[0], function() {
@@ -74,7 +74,7 @@ next(
     });
   },
   function(next) {
-    db = Tiny('./test.tiny', next);
+    db = Tiny(__dirname + '/test.tiny', next);
   },
   function(next) {
     db.fetch({desc: 'num', limit: 3}, function(doc, total) {
@@ -105,6 +105,7 @@ next(
   },
   function(str) {
     db.get('other', function(err, data) {
+      if (err) throw err;
       assert.ok(data.big === str, 'selective caching failed');
       if (data.big === str) console.log('done');
     });

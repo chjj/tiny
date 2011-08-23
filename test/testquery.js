@@ -37,12 +37,12 @@ var next = function() {
 };
 
 try { // delete the old test db
-  fs.unlinkSync('./test.tiny');
+  fs.unlinkSync(__dirname + '/test.tiny');
 } catch(e) {}
 
 next(
   function(next) {
-    db = Tiny('./test.tiny', next);
+    db = Tiny(__dirname + '/test.tiny', next);
   }, 
   function(next) {
     db.set('one', data.one, function() {
