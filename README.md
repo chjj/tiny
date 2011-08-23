@@ -11,7 +11,9 @@ CouchDB's views.
 
 ## Install
 
-    $ npm install tiny
+``` bash
+$ npm install tiny
+```
 
 ## How Tiny works...
 

@@ -2,7 +2,7 @@
   "name": "tiny",
   "description": "an in-process database",
   "author": "Christopher Jeffrey",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "main": "./lib/tiny.js",
   "bin": { "tiny": "./bin/tiny" },
   "repository": "git://github.com/chjj/node-tiny.git",
