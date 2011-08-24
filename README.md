@@ -88,9 +88,6 @@ it will __only__ lookup properties that are under 128b in size. This is to go
 easy on the memory. `.each` and `.all` are shallow by default, but they do have 
 a `deep` parameter, (which I don't recommend using).
 
-You can configure the limit at which properties are no longer cached by calling 
-`Tiny.limit`, which accepts a number of bytes. e.g. `Tiny.limit(1024);`
-
 ## Other Usage
 
 ``` js
