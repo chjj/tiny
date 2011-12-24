@@ -1,46 +1,212 @@
 #!/usr/bin/env node
 
 /**
- * Tiny
+ * Tiny CLI
+ * Copyright (c) 2011, Christopher Jeffrey (MIT License)
  */
 
-var Tiny = require('../');
+var fs = require('fs')
+  , util = require('util');
+
+var Tiny = require('../')
+  , db;
+
+/**
+ * Usage
+ */
+
+var usage = function() {
+  console.log('tiny - a small database');
+  console.log('');
+  console.log('Usage:');
+  console.log('  tiny [-dopch] [--dump] [--compact] database');
+  console.log('');
+  console.log('Options:');
+  console.log('  -d, --dump: Dump the database to a JSON file.');
+  console.log('  -o, --output [file]: Specify dump filename (- for stdout).');
+  console.log('  -p, --pretty: Pretty print dump.');
+  console.log('  -c, --compact: Compact database.');
+  console.log('  --import [json]: Import JSON data to database.');
+  console.log('  -h, --help: Display this message.');
+  console.log('');
+  console.log('Examples:');
+  console.log('  tiny --dump -p -o db.json db.tiny');
+  console.log('  tiny --compact db.tiny');
+  console.log('');
+  process.exit(0);
+};
 
 /**
  * Actions
  */
 
-var actions = {
-  dump: function(pretty) {
-    this.dump(!!pretty, function(err) {
-      if (err) throw err;
-      console.log('Tiny: Database dumped successfully.');
-    });
-  },
-  compact: function() {
-    var size = this.size;
-    this.compact(function(err) {
-      if (err) throw err;
-      console.log('Tiny: Database compacted successfully.');
-      console.log('Old size: %s. New size: %s', size, this.size);
-    });
-  }
-};
-
-// argument parsing here is weird
-// needs to be improved, and currently 
-// only dump and compact are supported
-
-var main = function(name, action, args) {
-  action = action.replace(/^-+/, '');
-  Tiny(name, function(err, db) {
+var dump = function(output, pretty) {
+  db.dump(pretty, function(err, pathname) {
     if (err) throw err;
-    if (!actions[action]) {
-      throw new 
-        Error('Argument not recognized.');
+
+    if (output) {
+      if (output === '-') {
+        var read = fs.createReadStream(pathname);
+        read.pipe(process.stdout, { end: false });
+        read.on('error', function(err) {
+          throw err;
+        });
+        read.on('close', function() {
+          fs.unlink(pathname, function(err) {
+            if (err) throw err;
+            pathname = 'stdout';
+            done();
+          });
+        });
+        return;
+      }
+      fs.rename(pathname, output, function(err) {
+        if (err) throw err;
+        pathname = output;
+        done();
+      });
+    } else {
+      done();
     }
-    actions[action].apply(db, args);
+
+    function done() {
+      console.log('Tiny: Database dumped successfully.');
+      console.log('Database was dumped to: %s', pathname);
+    }
   });
 };
 
-main(process.argv[2], process.argv[3], process.argv.slice(4));
+var compact = function() {
+  var size = db.size;
+  db.compact(function(err) {
+    if (err) throw err;
+    console.log('Tiny: Database compacted successfully.');
+    console.log('Old size: %s. New size: %s', size, db.size);
+  });
+};
+
+// Experimental
+
+var import_ = function(json) {
+  var data = JSON.parse(fs.readFileSync(json, 'utf8'))
+    , keys = Object.keys(data)
+    , pending = keys.length;
+
+  keys.forEach(function(key) {
+    var val = data[key];
+    db.set(key, val, function(err) {
+      if (err) throw err;
+      --pending || done();
+    });
+  });
+
+  function done() {
+    console.log('Data imported.');
+  }
+};
+
+/**
+ * Main
+ */
+
+var main = function(argv) {
+  var files = []
+    , input
+    , arg
+    , action
+    , output
+    , pretty
+    , json;
+
+  var getarg = function() {
+    var arg = argv.shift();
+    arg = arg.split('=');
+    if (arg.length > 1) {
+      argv.unshift(arg.sice(1).join('='));
+    }
+    return arg[0];
+  };
+
+  while (argv.length) {
+    arg = getarg();
+    switch (arg) {
+      case '-o':
+      case '--output':
+        output = argv.shift();
+        break;
+      case '-p':
+      case '--pretty':
+        pretty = true;
+        break;
+      case '-d':
+      case '--dump':
+        action = function() {
+          dump(output, pretty);
+        };
+        break;
+      case '-c':
+      case '--compact':
+        action = compact;
+        break;
+      case '-i':
+      case '--info':
+        console.log('Implement me!');
+        process.exit(1);
+        break;
+      case '--import':
+        json = argv.shift();
+        // TODO: make this pipeable
+        action = function() {
+          import_(json);
+        };
+        break;
+      case '-h':
+      case '--help':
+        usage();
+        break;
+      default:
+        files.push(arg);
+        break;
+    }
+  }
+
+  if (!input && files.length !== 2) {
+    input = files.pop();
+  }
+
+  if (!input && files.length === 2) {
+    var stdin = process.openStdin()
+      , buff = [];
+
+    stdin.setEncoding('utf8');
+    stdin.on('data', function(data) {
+      buff.push(data);
+    });
+
+    stdin.on('end', function() {
+      input = buff.join('');
+      open();
+    });
+  } else {
+    open();
+  }
+
+  function open() {
+    Tiny(input, function(err, db_) {
+      if (err) throw err;
+      db = db_;
+      done();
+    });
+  }
+
+  function done() {
+    if (action) action();
+  }
+};
+
+if (!module.parent) {
+  process.title = 'tiny';
+  main(process.argv.slice());
+} else {
+  module.exports = main;
+}

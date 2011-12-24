@@ -2,11 +2,11 @@
 
 __node-tiny__ is an in-process document/object store for node.js.
 
-It is largely inspired by [nStore](https://github.com/creationix/nstore), 
-however, its goal was to implement real querying which goes easy on the memory. 
+It is largely inspired by [nStore](https://github.com/creationix/nstore),
+however, its goal was to implement real querying which goes easy on the memory.
 
-Tiny is very simple, there are no schemas, just store your objects. It supports 
-mongo-style querying, or alternatively a "mapreduce-like" interface similar to 
+Tiny is very simple, there are no schemas, just store your objects. It supports
+mongo-style querying, or alternatively a "mapreduce-like" interface similar to
 CouchDB's views.
 
 ## Install
@@ -17,32 +17,27 @@ $ npm install tiny
 
 ## How Tiny works...
 
-Tiny takes advantage of the fact that, normally, when you query for 
-records in a database, you're only comparing small properties (<128b) in the 
-query itself. For example, when you query for articles on a weblog, you'll 
-usually only be comparing the timestamp of the article, the title, the author, 
-the category, the tags, etc. - pretty much everything except the content of 
+Tiny takes advantage of the fact that, normally, when you query for
+records in a database, you're only comparing small properties (<128b) in the
+query itself. For example, when you query for articles on a weblog, you'll
+usually only be comparing the timestamp of the article, the title, the author,
+the category, the tags, etc. - pretty much everything except the content of
 the article itself.
 
-Tiny stores each document/object's property individually in the DB file and 
-caches all the small properties into memory when the DB loads, leaving anything 
-above 128b behind. When a query is performed, Tiny only lets you compare the 
-properties stored in memory, which is what you were going to do anyway. Once 
-the query is complete, Tiny will perform lookups on the FD to grab the large 
-properties and put them in their respective objects before results are returned 
+Tiny stores each document/object's property individually in the DB file and
+caches all the small properties into memory when the DB loads, leaving anything
+above 128b behind. When a query is performed, Tiny only lets you compare the
+properties stored in memory, which is what you were going to do anyway. Once
+the query is complete, Tiny will perform lookups on the FD to grab the large
+properties and put them in their respective objects before results are returned
 to you.
 
-This my attempt at combining what I think the best aspects of nStore and 
-node-dirty are. node-dirty is incredibly fast and simple (everything is 
-in-memory), and nStore is very memory effecient, (but this only lasts until you 
-perform a query). node-tiny allows for queries that perform lookups on the db 
-file, and it selectively caches properties as well, so its fast and easy on 
+This my attempt at combining what I think the best aspects of nStore and
+node-dirty are. node-dirty is incredibly fast and simple (everything is
+in-memory), and nStore is very memory effecient, (but this only lasts until you
+perform a query). node-tiny allows for queries that perform lookups on the db
+file, and it selectively caches properties as well, so it's fast and easier on
 memory.
-
-The benefits you receive from using node-tiny depend on the kind of data you're 
-working with. With the blog example mentioned above, if you consider that the 
-metadata for a blog post may be as little as 200 bytes, a __half-million__ 
-articles would use less than 100mb of memory. 
 
 ## Example Querying
 
@@ -54,9 +49,9 @@ Tiny('articles.tiny', function(err, db) {
     , high = time - (30*60*1000);
 
   // mongo-style query
-  db.find({$or: [ 
-    { timestamp: { $lte: low } }, 
-    { timestamp: { $gte: high } }  
+  db.find({$or: [
+    { timestamp: { $lte: low } },
+    { timestamp: { $gte: high } }
   ]})
   .desc('timestamp')
   .limit(3)(function(err, results) {
@@ -68,9 +63,9 @@ Tiny('articles.tiny', function(err, db) {
     desc: 'timestamp',
     limit: 3
   }, function(doc, key) {
-    if (doc.timestamp <= low 
+    if (doc.timestamp <= low
         || doc.timestamp >= high) {
-      console.log('Found:', key); 
+      console.log('Found:', key);
       return true;
     }
   }, function(err, results) {
@@ -79,13 +74,13 @@ Tiny('articles.tiny', function(err, db) {
 });
 ```
 
-The mongo-style querying should be fairly self-explanatory. The second query is 
-supposed to be similar to a mapreduce interface, but it's the rough equivalent 
+The mongo-style querying should be fairly self-explanatory. The second query is
+supposed to be similar to a mapreduce interface, but it's the rough equivalent
 of a `.filter` function.
 
-Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein 
-it will __only__ lookup properties that are under 128b in size. This is to go 
-easy on the memory. `.each` and `.all` are shallow by default, but they do have 
+Note: there is a `shallow` parameter for `.fetch`, `.find`, and `.get`, wherein
+it will __only__ lookup properties that are under 128b in size. This is to go
+easy on the memory. `.each` and `.all` are shallow by default, but they do have
 a `deep` parameter, (which I don't recommend using).
 
 ## Other Usage
@@ -102,7 +97,7 @@ db.set('myDocument', {
 // .each will iterate through
 // every object in the database
 // it is shallow by default
-db.each(function(doc) { 
+db.each(function(doc) {
   console.log(doc.title);
 });
 
@@ -116,18 +111,18 @@ db.all(function(err, docs) {
 // remove a doc
 db.remove('myDocument', function(err) {
   console.log('deleted');
-}); 
+});
 
 // retrieve an object from the database
 db.get('someOtherThing', function(err, data) {
-  // data._key is a property which 
+  // data._key is a property which
   // holds the key of every object
-  console.log('found:', data._key); 
+  console.log('found:', data._key);
 });
 
-// updates the object 
+// updates the object
 // without overwriting its other properties
-db.update('article_1', { 
+db.update('article_1', {
   title: 'new title'
 }, function(err) {
   console.log('done');
@@ -153,8 +148,8 @@ db.dump(true, function(err) {
 
 ## Making data more memory efficient
 
-Because of the way Tiny works, there are ways to alter your data to make it more 
-memory efficient. For example, if you have several properties on your objects 
+Because of the way Tiny works, there are ways to alter your data to make it more
+memory efficient. For example, if you have several properties on your objects
 that aren't necessary to for queries, its best to nest them in an object.
 
 ``` js
@@ -175,12 +170,13 @@ user: {
 }
 ```
 
-That way, the data will not be cached if it exceeds 128b collectively. Eventually 
-there may be an `ignore` method or an `index` method, which will be explicitly 
-inclusive or exclusive to which properties are cached and which properties are 
+That way, the data will not be cached if it exceeds 128b collectively. Eventually
+there may be an `ignore` method or an `index` method, which will be explicitly
+inclusive or exclusive to which properties are cached and which properties are
 able to be referenced within a query.
 
 ## Documentation
+
 ### Database
 * [Construction](#construction)
 * [dump](#dump)
@@ -193,7 +189,9 @@ able to be referenced within a query.
 * [all](#all)
 
 ## Database
-<a name="construction" />
+
+<a name="construction"></a>
+
 ### Tiny(name, callback)
 Creates and returns a database with the given name.
 
@@ -205,16 +203,18 @@ __Arguments__
 __Example__
 
 ``` js
-var tinydb;
-Tiny('articles.tiny', function(err, db) {
-  tinydb = db;
+var db;
+Tiny('./articles.tiny', function(err, db_) {
+  if (err) throw err;
+  db = db_;
   ...
 });
 ```
 
 ---------------------------------------
 
-<a name="dump" />
+<a name="dump"></a>
+
 ### dump(pretty, func) or dump(func)
 Dumps the a database to a JSON file with the name as name.json. Pretty specifies whether to indent each line with two spaces or not. Alternatively, dump(func) can be called.
 
@@ -233,7 +233,8 @@ db.dump(true, function(err) {
 
 ---------------------------------------
 
-<a name="close" />
+<a name="close"></a>
+
 ### close(func)
 Closes the Tiny database file handle. A new Tiny object must be made to reopen the file.
 
@@ -251,7 +252,8 @@ db.close(function(err) {
 
 ---------------------------------------
 
-<a name="kill" />
+<a name="kill"></a>
+
 ### kill(func)
 Closes the Tiny database file, deletes the file and all the data in the database, and then creates a new database with the same name and file.
 
@@ -268,7 +270,9 @@ db.kill(function(err) {
 ```
 
 ## Querying
-<a name="set" />
+
+<a name="set"></a>
+
 ### set(docKey, doc, func)
 Saves a object `doc` to database under the key `docKey`. Ideally, docKey should be 128b or smaller.
 
@@ -291,7 +295,8 @@ db.set('myDocument', {
 
 ---------------------------------------
 
-<a name="each" />
+<a name="each"></a>
+
 ### each(func, deep) or each(func)
 Iterates through every object in the database.
 
@@ -308,25 +313,6 @@ db.each(function(doc) {
   console.log(doc.title);
 }, function() {
   console.log('done');
-});
-```
-
----------------------------------------
-
-<a name="all" />
-### all(func, deep) or all(func)
-Returns an array containing all the objects in the database. By default, it will only return cacheable objects (ones smaller than 128b).
-
-__Arguments__
-
-* func(err, docs) - Callback function called with `docs`, the entire array of objects from the database
-* deep - `true` if every object should be returned, `false` or unset if only cacheable objects should be returned (ones smaller than 128b)
-
-__Example__
-
-``` js
-db.all(function(err, docs) {
-  console.log(docs.length);
 });
 ```
 
