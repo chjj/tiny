@@ -122,7 +122,7 @@ var main = function(argv) {
     var arg = argv.shift();
     arg = arg.split('=');
     if (arg.length > 1) {
-      argv.unshift(arg.sice(1).join('='));
+      argv.unshift(arg.slice(1).join('='));
     }
     return arg[0];
   };
