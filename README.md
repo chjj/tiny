@@ -1,6 +1,6 @@
-# node-tiny
+# tiny
 
-__node-tiny__ is an in-process document/object store for node.js.
+__tiny__ is an in-process document/object store for node.js.
 
 It is largely inspired by [nStore](https://github.com/creationix/nstore),
 however, its goal was to implement real querying which goes easy on the memory.
@@ -17,12 +17,12 @@ $ npm install tiny
 
 ## How Tiny works...
 
-Tiny takes advantage of the fact that, normally, when you query for
-records in a database, you're only comparing small properties (<128b) in the
-query itself. For example, when you query for articles on a weblog, you'll
-usually only be comparing the timestamp of the article, the title, the author,
-the category, the tags, etc. - pretty much everything except the content of
-the article itself.
+Tiny takes advantage of the fact that, normally, when you query for records in
+a database, you're only comparing small properties (<128b) in the query itself.
+For example, when you query for articles on a weblog, you'll usually only be
+comparing the timestamp of the article, the title, the author, the category,
+the tags, etc. - pretty much everything except the content of the article
+itself.
 
 Tiny stores each document/object's property individually in the DB file and
 caches all the small properties into memory when the DB loads, leaving anything
@@ -148,9 +148,10 @@ db.dump(true, function(err) {
 
 ## Making data more memory efficient
 
-Because of the way Tiny works, there are ways to alter your data to make it more
-memory efficient. For example, if you have several properties on your objects
-that aren't necessary to for queries, its best to nest them in an object.
+Because of the way Tiny works, there are ways to alter your data to make it
+more memory efficient. For example, if you have several properties on your
+objects that aren't necessary to for queries, its best to nest them in an
+object.
 
 ``` js
 user: {
@@ -170,23 +171,23 @@ user: {
 }
 ```
 
-That way, the data will not be cached if it exceeds 128b collectively. Eventually
-there may be an `ignore` method or an `index` method, which will be explicitly
-inclusive or exclusive to which properties are cached and which properties are
-able to be referenced within a query.
+That way, the data will not be cached if it exceeds 128b collectively.
+Eventually there may be an `ignore` method or an `index` method, which will be
+explicitly inclusive or exclusive to which properties are cached and which
+properties are able to be referenced within a query.
 
 ## Documentation
 
 ### Database
-* [Construction](#construction)
-* [dump](#dump)
-* [close](#close)
-* [kill](#kill)
+- [Construction](#construction)
+- [dump](#dump)
+- [close](#close)
+- [kill](#kill)
 
 ### Querying
-* [set](#set)
-* [each](#each)
-* [all](#all)
+- [set](#set)
+- [each](#each)
+- [all](#all)
 
 ## Database
 
@@ -197,8 +198,8 @@ Creates and returns a database with the given name.
 
 __Arguments__
 
-* name - filename to store and load the Tiny database
-* callback(err, db) - Called after the database file is opened and loaded
+- name - filename to store and load the Tiny database
+- callback(err, db) - Called after the database file is opened and loaded
 
 __Example__
 
@@ -216,12 +217,15 @@ Tiny('./articles.tiny', function(err, db_) {
 <a name="dump"></a>
 
 ### dump(pretty, func) or dump(func)
-Dumps the a database to a JSON file with the name as name.json. Pretty specifies whether to indent each line with two spaces or not. Alternatively, dump(func) can be called.
+
+Dumps the a database to a JSON file with the name as name.json. Pretty
+specifies whether to indent each line with two spaces or not. Alternatively,
+dump(func) can be called.
 
 __Arguments__
 
-* pretty - if true, the JSON file will be indented with two spaces
-* func(err) - called after the dump is complete.
+- pretty - if true, the JSON file will be indented with two spaces
+- func(err) - called after the dump is complete.
 
 __Example__
 
@@ -236,11 +240,13 @@ db.dump(true, function(err) {
 <a name="close"></a>
 
 ### close(func)
-Closes the Tiny database file handle. A new Tiny object must be made to reopen the file.
+
+Closes the Tiny database file handle. A new Tiny object must be made to reopen
+the file.
 
 __Arguments__
 
-* func() - callback function after the database has been closed
+- func() - callback function after the database has been closed
 
 __Example__
 
@@ -255,11 +261,13 @@ db.close(function(err) {
 <a name="kill"></a>
 
 ### kill(func)
-Closes the Tiny database file, deletes the file and all the data in the database, and then creates a new database with the same name and file.
+
+Closes the Tiny database file, deletes the file and all the data in the
+database, and then creates a new database with the same name and file.
 
 __Arguments__
 
-* func() - callback function after the database has been reloaded
+- func() - callback function after the database has been reloaded
 
 __Example__
 
@@ -274,13 +282,15 @@ db.kill(function(err) {
 <a name="set"></a>
 
 ### set(docKey, doc, func)
-Saves a object `doc` to database under the key `docKey`. Ideally, docKey should be 128b or smaller.
+
+Saves a object `doc` to database under the key `docKey`. Ideally, docKey should
+be 128b or smaller.
 
 __Arguments__
 
-* docKey - a key to search the database for
-* doc - an object to save to the database under the given key
-* func - callback function after the doc object has been saved to the database
+- docKey - a key to search the database for
+- doc - an object to save to the database under the given key
+- func - callback function after the doc object has been saved to the database
 
 __Example__
 
@@ -298,13 +308,16 @@ db.set('myDocument', {
 <a name="each"></a>
 
 ### each(func, deep) or each(func)
+
 Iterates through every object in the database.
 
 __Arguments__
 
-* func(doc) - Callback function that is called with every iterated object `doc` from the database
-* done() - Callback to be executed after the iterations complete.
-* deep - `true` if every object should be returned, `false` or unset if only cacheable objects should be returned (ones smaller than 128b)
+- func(doc) - Callback function that is called with every iterated object `doc`
+  from the database
+- done() - Callback to be executed after the iterations complete.
+- deep - `true` if every object should be returned, `false` or unset if only
+  cacheable objects should be returned (ones smaller than 128b)
 
 __Example__
 
@@ -316,6 +329,14 @@ db.each(function(doc) {
 });
 ```
 
+### Contribution and License Agreement
+
+If you contribute code to this project, you are implicitly allowing your code
+to be distributed under the MIT license. You are also implicitly verifying that
+all code is your original work. `</legalese>`
+
 ## License
 
-See LICENSE (MIT).
+Copyright (c) 2011-2014, Christopher Jeffrey. (MIT License)
+
+See LICENSE for more info.
