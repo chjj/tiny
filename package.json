@@ -1,10 +1,20 @@
 {
   "name": "tiny",
-  "description": "an in-process database",
+  "description": "An in-process key-value store",
   "author": "Christopher Jeffrey",
   "version": "0.0.8",
   "main": "./lib/tiny.js",
-  "bin": { "tiny": "./bin/tiny" },
-  "repository": "git://github.com/chjj/node-tiny.git",
-  "keywords": [ "database", "nosql", "in-process" ]
+  "bin": "./bin/tiny",
+  "man": "./man/tiny.1",
+  "preferGlobal": true,
+  "repository": "git://github.com/chjj/tiny.git",
+  "homepage": "https://github.com/chjj/tiny",
+  "bugs": { "url": "http://github.com/chjj/tiny/issues" },
+  "license": "MIT",
+  "keywords": ["database", "nosql", "in-process"],
+  "tags": ["database", "nosql", "in-process"],
+  "scripts": {
+    "test": "node test",
+    "bench": "node test --bench"
+  }
 }

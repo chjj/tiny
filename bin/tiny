@@ -2,209 +2,315 @@
 
 /**
  * Tiny CLI
- * Copyright (c) 2011, Christopher Jeffrey (MIT License)
+ * Copyright (c) 2011-2014, Christopher Jeffrey (MIT License)
  */
 
 var fs = require('fs')
   , util = require('util');
 
 var Tiny = require('../')
-  , db;
+  , argv = parseArg(process.argv.slice(2))
+  , db = Tiny(argv.db);
+
+/**
+ * Man Page
+ */
+
+function help() {
+  var spawn = require('child_process').spawn;
+
+  return usage();
+
+  var options = {
+    cwd: process.cwd(),
+    env: process.env,
+    setsid: false,
+    customFds: [0, 1, 2]
+  };
+
+  return spawn('man',
+    [__dirname + '/../man/tiny.1'],
+    options);
+}
 
 /**
  * Usage
  */
 
-var usage = function() {
-  console.log('tiny - a small database');
-  console.log('');
-  console.log('Usage:');
-  console.log('  tiny [-dopch] [--dump] [--compact] database');
-  console.log('');
-  console.log('Options:');
-  console.log('  -d, --dump: Dump the database to a JSON file.');
-  console.log('  -o, --output [file]: Specify dump filename (- for stdout).');
-  console.log('  -p, --pretty: Pretty print dump.');
-  console.log('  -c, --compact: Compact database.');
-  console.log('  --import [json]: Import JSON data to database.');
-  console.log('  -h, --help: Display this message.');
-  console.log('');
-  console.log('Examples:');
-  console.log('  tiny --dump -p -o db.json db.tiny');
-  console.log('  tiny --compact db.tiny');
-  console.log('');
+function usage() {
+  console.error('tiny - a small database');
+  console.error('');
+  console.error('Usage:');
+  console.error(''
+    + '  tiny [-dopch] [--dump] [--output file] [--pretty]'
+    + ' [--compact] [--import json] [--info] [--help] [database]');
+  console.error('');
+  console.error('Options:');
+  console.error('  -d, --dump: Dump the database to a JSON file.');
+  console.error('  -o, --output [file]: Specify dump filename (- for stdout).');
+  console.error('  -p, --pretty: Pretty print dump.');
+  console.error('  -c, --compact: Compact database.');
+  console.error('  --info: Display database information.');
+  console.error('  --import [json]: Import JSON data to database.');
+  console.error('  -h, --help: Display this message.');
+  console.error('');
+  console.error('Examples:');
+  console.error('  tiny --dump -p -o db.json db.tiny');
+  console.error('  tiny --compact db.tiny');
+  console.error('');
   process.exit(0);
-};
+}
 
 /**
- * Actions
+ * Arguments
  */
 
-var dump = function(output, pretty) {
-  db.dump(pretty, function(err, pathname) {
-    if (err) throw err;
+function parseArg(argv) {
+  var options = {}
+    , files = options.files = []
+    , arg;
 
-    if (output) {
-      if (output === '-') {
-        var read = fs.createReadStream(pathname);
-        read.pipe(process.stdout, { end: false });
-        read.on('error', function(err) {
-          throw err;
-        });
-        read.on('close', function() {
-          fs.unlink(pathname, function(err) {
-            if (err) throw err;
-          });
-        });
-        return;
-      }
-      fs.rename(pathname, output, function(err) {
-        if (err) throw err;
-        pathname = output;
-        done();
-      });
-    } else {
-      done();
-    }
-
-    function done() {
-      console.log('Tiny: Database dumped successfully.');
-      console.log('Database was dumped to: %s', pathname);
-    }
-  });
-};
-
-var compact = function() {
-  var size = db.size;
-  db.compact(function(err) {
-    if (err) throw err;
-    console.log('Tiny: Database compacted successfully.');
-    console.log('Old size: %s. New size: %s', size, db.size);
-  });
-};
-
-// Experimental
-
-var import_ = function(json) {
-  var data = JSON.parse(fs.readFileSync(json, 'utf8'))
-    , keys = Object.keys(data)
-    , pending = keys.length;
-
-  keys.forEach(function(key) {
-    var val = data[key];
-    db.set(key, val, function(err) {
-      if (err) throw err;
-      --pending || done();
-    });
-  });
-
-  function done() {
-    console.log('Data imported.');
-  }
-};
-
-/**
- * Main
- */
-
-var main = function(argv) {
-  var files = []
-    , input
-    , arg
-    , action
-    , output
-    , pretty
-    , json;
-
-  var getarg = function() {
+  function getarg() {
     var arg = argv.shift();
-    arg = arg.split('=');
-    if (arg.length > 1) {
-      argv.unshift(arg.slice(1).join('='));
+
+    if (arg.indexOf('--') === 0) {
+      // e.g. --opt
+      arg = arg.split('=');
+      if (arg.length > 1) {
+        // e.g. --opt=val
+        argv.unshift(arg.slice(1).join('='));
+      }
+      arg = arg[0];
+    } else if (arg[0] === '-') {
+      if (arg.length > 2) {
+        // e.g. -abc
+        argv = arg.substring(1).split('').map(function(ch) {
+          return '-' + ch;
+        }).concat(argv);
+        arg = argv.shift();
+      } else {
+        // e.g. -a
+      }
+    } else {
+      // e.g. foo
     }
-    return arg[0];
-  };
+
+    return arg;
+  }
 
   while (argv.length) {
     arg = getarg();
     switch (arg) {
       case '-o':
       case '--output':
-        output = argv.shift();
+        options.action = 'dump';
+        options.output = argv.shift();
         break;
       case '-p':
       case '--pretty':
-        pretty = true;
+        options.action = 'dump';
+        options.pretty = true;
         break;
       case '-d':
       case '--dump':
-        action = function() {
-          dump(output, pretty);
-        };
+        options.action = 'dump';
         break;
       case '-c':
       case '--compact':
-        action = compact;
+        options.action = 'compact';
         break;
-      case '-i':
       case '--info':
-        console.log('Implement me!');
-        process.exit(1);
+        options.action = 'info';
         break;
       case '--import':
-        json = argv.shift();
-        // TODO: make this pipeable
-        action = function() {
-          import_(json);
-        };
+        options.action = 'import';
+        options.json = argv.shift();
         break;
       case '-h':
       case '--help':
-        usage();
+        help();
         break;
       default:
+        if (!options.db) {
+          options.db = arg;
+        }
         files.push(arg);
         break;
     }
   }
 
-  if (!input && files.length !== 2) {
-    input = files.pop();
-  }
-
-  if (!input && files.length === 2) {
-    var stdin = process.openStdin()
-      , buff = [];
-
-    stdin.setEncoding('utf8');
-    stdin.on('data', function(data) {
-      buff.push(data);
-    });
-
-    stdin.on('end', function() {
-      input = buff.join('');
-      open();
-    });
-  } else {
-    open();
-  }
-
-  function open() {
-    Tiny(input, function(err, db_) {
-      if (err) throw err;
-      db = db_;
-      done();
-    });
-  }
-
-  function done() {
-    if (action) action();
-  }
+  return options;
 };
+
+/**
+ * Actions
+ */
+
+var actions = {};
+
+actions.dump = function(output, pretty, callback) {
+  return db.dump(pretty, function(err, file) {
+    if (err) throw err;
+
+    function dump(callback) {
+      if (output) {
+        if (output === '-') {
+          return toStdout(file, function(err) {
+            if (err) return callback(err);
+            return fs.unlink(file, callback);
+          });
+        }
+        return fs.rename(file, output, function(err) {
+          if (err) return callback(err);
+          file = output;
+          return callback();
+        });
+      }
+      return callback();
+    }
+
+    return dump(function(err) {
+      if (err) return callback(err);
+      console.log('Tiny: Database dumped successfully.');
+      console.log('Database was dumped to: %s', file);
+      return callback();
+    });
+  });
+};
+
+actions.compact = function(callback) {
+  return db.compact(function(err) {
+    if (err) return callback(err);
+    console.log('Tiny: Database compacted successfully.');
+    console.log('Old size: %s. New size: %s', size, db.size);
+    return callback();
+  });
+};
+
+actions.import = function(json, data, callback) {
+  var data = JSON.parse(data || fs.readFileSync(json, 'utf8'));
+
+  function import(callback) {
+    var keys = Object.keys(data)
+      , pending = keys.length
+      , e = null;
+
+    return keys.forEach(function(key) {
+      var val = data[key];
+      return db.set(key, val, function(err) {
+        if (err) e = err;
+        --pending || callback(e);
+      });
+    });
+  }
+
+  return import(function(err) {
+    if (err) return callback(err);
+    console.log('Data imported.');
+    return callback();
+  });
+};
+
+actions.info = function(callback) {
+  console.log('Size: %d', db.size);
+  return callback();
+};
+
+/**
+ * Main
+ */
+
+function main(argv, callback) {
+  if (argv.action === 'dump') {
+    return actions.dump(argv.output, argv.pretty, function(err) {
+      if (err) return callback(err);
+      return callback();
+    });
+  }
+
+  if (argv.action === 'compact') {
+    return actions.compact(function(err) {
+      if (err) return callback(err);
+      return callback();
+    });
+  }
+
+  if (argv.action === 'import') {
+    if (argv.json === '-') {
+      return getStdin(function(err, text) {
+        return actions.import(null, text, function(err) {
+          if (err) return callback(err);
+          return callback();
+        });
+      });
+    }
+    return actions.import(argv.json, null, function(err) {
+      if (err) return callback(err);
+      return callback();
+    });
+  }
+
+  // Default:
+  // if (argv.action === 'info') {
+  return actions.info(function(err) {
+    if (err) return callback(err);
+    return callback();
+  });
+}
+
+/**
+ * Helpers
+ */
+
+function getStdin(callback) {
+  var stdin = process.stdin
+    , buff = '';
+
+  stdin.setEncoding('utf8');
+
+  stdin.on('data', function(data) {
+    buff += data;
+  });
+
+  stdin.on('error', function(err) {
+    return callback(err);
+  });
+
+  stdin.on('end', function() {
+    return callback(null, buff);
+  });
+
+  try {
+    stdin.resume();
+  } catch (e) {
+    callback(e);
+  }
+}
+
+function toStdout(file, callback) {
+  var read = fs.createReadStream(file);
+  read.pipe(process.stdout, { end: false });
+  read.on('error', function(err) {
+    return callback(err);
+  });
+  read.on('close', function() {
+    return callback();
+  });
+}
+
+/**
+ * Expose / Entry Point
+ */
 
 if (!module.parent) {
   process.title = 'tiny';
-  main(process.argv.slice());
+  main(argv, function(err) {
+    if (err) {
+      console.error(err.message);
+      return process.exit(1);
+    }
+    return process.exit(0);
+  });
 } else {
   module.exports = main;
 }
