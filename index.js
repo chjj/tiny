@@ -1,1 +1,1 @@
-module.exports = require('./lib/tiny_');
+module.exports = require('./lib/tiny.obj.js');
