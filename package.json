@@ -16,5 +16,9 @@
   "scripts": {
     "test": "node test",
     "bench": "node test --bench"
-  }
+  },
+  "dependencies": {
+    "lru-cache": "~2.5.0"
+  },
+  "engines": { "node": ">= 0.8.0" }
 }
