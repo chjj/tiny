@@ -187,10 +187,10 @@ actions.compact = function(callback) {
   });
 };
 
-actions.import = function(json, data, callback) {
+actions._import = function(json, data, callback) {
   var data = JSON.parse(data || fs.readFileSync(json, 'utf8'));
 
-  function import(callback) {
+  function _import(callback) {
     var keys = Object.keys(data)
       , pending = keys.length
       , e = null;
@@ -204,7 +204,7 @@ actions.import = function(json, data, callback) {
     });
   }
 
-  return import(function(err) {
+  return _import(function(err) {
     if (err) return callback(err);
     console.log('Data imported.');
     return callback();
@@ -238,13 +238,13 @@ function main(argv, callback) {
   if (argv.action === 'import') {
     if (argv.json === '-') {
       return getStdin(function(err, text) {
-        return actions.import(null, text, function(err) {
+        return actions._import(null, text, function(err) {
           if (err) return callback(err);
           return callback();
         });
       });
     }
-    return actions.import(argv.json, null, function(err) {
+    return actions._import(argv.json, null, function(err) {
       if (err) return callback(err);
       return callback();
     });
