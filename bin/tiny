@@ -179,6 +179,10 @@ actions.dump = function(output, pretty, callback) {
 };
 
 actions.compact = function(callback) {
+  if (!db._loaded) {
+    return db.on('open', actions.compact.bind(actions, callback));
+  }
+  var size = db.size;
   return db.compact(function(err) {
     if (err) return callback(err);
     console.log('Tiny: Database compacted successfully.');
@@ -212,7 +216,11 @@ actions._import = function(json, data, callback) {
 };
 
 actions.info = function(callback) {
-  console.log('Size: %d', db.size);
+  if (!db._loaded) {
+    return db.on('open', actions.info.bind(actions, callback));
+  }
+  console.log('Size: %dmb', db.size / 1024 / 1024);
+  console.log('Entries: %d', db.length);
   return callback();
 };
 
