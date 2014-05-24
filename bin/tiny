@@ -186,7 +186,8 @@ actions.compact = function(callback) {
   return db.compact(function(err) {
     if (err) return callback(err);
     console.log('Tiny: Database compacted successfully.');
-    console.log('Old size: %s. New size: %s', size, db.size);
+    console.log('Old size: %smb. New size: %smb',
+      size / 1024 / 1024, db.size / 1024 / 1024);
     return callback();
   });
 };
