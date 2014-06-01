@@ -3,7 +3,7 @@
   "description": "An in-process key-value store",
   "author": "Christopher Jeffrey",
   "version": "0.0.9",
-  "main": "./lib/tiny.obj.js",
+  "main": "./lib/tiny.js",
   "bin": "./bin/tiny",
   "man": "./man/tiny.1",
   "preferGlobal": true,
