@@ -1,6 +1,6 @@
 # tiny
 
-__tiny__ is an in-process document/object store for node.js.
+__tiny__ is an in-process document/object store for Node.js.
 
 It is largely inspired by [nStore](https://github.com/creationix/nstore),
 however, its goal was to implement real querying which goes easy on the memory.
